@@ -20,12 +20,13 @@ data GameResult = GameResult
 
 searchMultipleGames :: T.Text -> IO [GameResult]
 searchMultipleGames gameName = do
+    let token = "ow6kyy3nm5a51hud2b940pu4nupcb5"
     let query = "fields name, platforms.name, first_release_date, cover.url; search \"" <> T.unpack gameName <> "\"; limit 20;"
     
     request' <- parseRequest "https://api.igdb.com/v4/games"
     let request = setRequestMethod "POST"
                 $ setRequestHeader "Client-ID" ["poa6s33d3kywrcalk2xa52cs4h2bu2"]
-                $ setRequestHeader "Authorization" ["Bearer babgqkix8mdd8ce0l2jl8he8cb3lnx"]
+                $ setRequestHeader "Authorization" ["Bearer " <> token]
                 $ setRequestHeader "Content-Type" ["text/plain"]
                 $ setRequestBodyLBS (LBS.pack query) 
                 $ request'
