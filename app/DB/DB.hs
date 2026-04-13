@@ -3,14 +3,16 @@
 
 module DB.DB where
 
+import Crypto.Hash (Digest, SHA256)
 import Database.SQLite.Simple
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE  
-import qualified Crypto.Hash as Hash    
-import qualified Data.ByteString.Base64 as B64  
-import Control.Exception (try, SomeException) 
+import qualified Data.Text.Encoding as TE
+import qualified Crypto.Hash as Hash
+import qualified Data.ByteString.Base64 as B64
+import Control.Exception (try, SomeException)
 import qualified Data.ByteArray as BA
+import qualified Data.ByteString as BS
 import Models.Games (Game)
 
 
@@ -28,8 +30,8 @@ initDB = do
     execute_ conn $ Query $ T.pack $ unlines
         [ "CREATE TABLE IF NOT EXISTS users ("
         , "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        , "  email TEXT UNIQUE NOT NULL," 
-        , "  password_hash TEXT NOT NULL" 
+        , "  email TEXT UNIQUE NOT NULL,"
+        , "  password_hash TEXT NOT NULL"
         , ")"
         ]
 
@@ -41,20 +43,20 @@ initDB = do
         , "  cover_url TEXT,"
         , "  score REAL,"
         , "  platform TEXT,"
+        , "  jogado INTEGER DEFAULT 0,"
+        , "  platinado INTEGER DEFAULT 0,"
         , "  FOREIGN KEY (user_id) REFERENCES users (id)"
         , ")"
         ]
-    
-    close conn  
+
+    close conn
 
 -- Função para hashear a senha usando SHA256 e codificar em Base64
 hashPassword :: Text -> Text
-hashPassword password = 
+hashPassword password =
     let passwordBytes = TE.encodeUtf8 password
-        digest = Hash.hash passwordBytes :: Hash.Digest Hash.SHA256
-        digestBytes = BA.convert digest 
-        encoded = B64.encode digestBytes
-    in TE.decodeUtf8 encoded
+        encoded = T.pack (show (Hash.hash passwordBytes :: Hash.Digest Hash.SHA256))
+    in encoded
 
 -- Função para auxiliar nos testes
 deleteUser :: Text -> IO Bool
@@ -71,23 +73,23 @@ insertUser email password = do
 
     result <- (try $ do
         conn <- connectDB
-        execute conn "INSERT INTO users (email, password_hash) VALUES (?, ?)"  
+        execute conn "INSERT INTO users (email, password_hash) VALUES (?, ?)"
             (email, hashedPassword)
         userId <- lastInsertRowId conn
         close conn
         return (fromIntegral userId)) :: IO (Either SomeException Int) -- Pode ser um erro de exceção ou o userId
 
     case result of
-        Right userId -> return $ Right userId  
+        Right userId -> return $ Right userId
         Left err -> return $ Left $ "Erro ao inserir usuário: " ++ show err
 
-insertGame :: Int -> Text -> Double -> Text -> Maybe Text -> IO (Either String Int) -- Retorna String em caso de erro ou Int (gameId) em caso de sucesso
-insertGame userId title score platform maybeCoverUrl = do
+insertGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> IO (Either String Int) -- Retorna String em caso de erro ou Int (gameId) em caso de sucesso
+insertGame userId title score platform maybeCoverUrl played platinumed = do
     conn <- connectDB
 
     result <- try $ do
-        execute conn "INSERT INTO games (user_id, title, score, platform, cover_url) VALUES (?, ?, ?, ?, ?)" 
-                (userId, title, score, platform, maybeCoverUrl)
+        execute conn "INSERT INTO games (user_id, title, score, platform, cover_url, jogado, platinado) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                (userId, title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int)
         lastId <- lastInsertRowId conn
         close conn
         return $ fromIntegral lastId
@@ -95,11 +97,11 @@ insertGame userId title score platform maybeCoverUrl = do
     case result of
         Right gameId -> return $ Right gameId
         Left (_ :: SomeException) -> return $ Left "Erro ao inserir jogo no banco de dados"
-        
+
 getGames :: Int -> IO [Game]
 getGames user_id = do
     conn <- connectDB
-    games <- query conn "SELECT id, title, score, platform, cover_url FROM games WHERE user_id = ? ORDER BY title ASC" (Only user_id) 
+    games <- query conn "SELECT id, title, score, platform, cover_url, jogado, platinado FROM games WHERE user_id = ? ORDER BY title ASC" (Only user_id)
     close conn
     return games
 
@@ -109,7 +111,7 @@ deleteGame gameId = do
     execute conn "DELETE FROM games WHERE id = ?" (Only gameId)
     close conn
 
-authenticateUser :: Text -> Text -> IO (Either String Int) 
+authenticateUser :: Text -> Text -> IO (Either String Int)
 authenticateUser email password = do
     let hashedPassword = hashPassword password
 
@@ -129,4 +131,4 @@ authenticateUser email password = do
     case result of
         Right (Just userId) -> return $ Right userId -- Funcionou e encontrou o usuário
         Right Nothing -> return $ Left "E-mail ou senha incorretos" -- Funcionou, mas não encontrou ou senha incorreta
-        Left err -> return $ Left $ "Erro no DB" ++ show err 
+        Left err -> return $ Left $ "Erro no DB" ++ show err

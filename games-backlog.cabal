@@ -18,6 +18,7 @@ common warnings
 executable games-backlog
     import:           warnings
     main-is:          Main.hs
+    ghc-options:      -threaded
 
     -- Módulos do projeto
     other-modules:    Api.Igdb,
