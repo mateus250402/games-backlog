@@ -12,7 +12,7 @@ import qualified Utils.Handles as Hd
 main :: IO ()
 main = do
     DB.initDB
-    
+
     scotty 3000 $ do
 
         get "/" Hd.getIndex
@@ -35,5 +35,6 @@ main = do
         get "/confirm" $ Session.requireAuth $ do Hd.getConfirm
         post "/confirm" $ Session.requireAuth $ do Hd.postConfirm
 
+        post "/edit/:id" $ Session.requireAuth $ do Hd.postEdit
+
         post "/delete/:id" $ Session.requireAuth $ do Hd.postDelete
-            

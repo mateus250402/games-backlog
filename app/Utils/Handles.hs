@@ -94,6 +94,29 @@ postAdd = do
                     html $ renderText $ Selection.gameSelectionPage (T.pack name) (T.pack finalScore) (T.pack platform) played platinumed multipleGames
         _ -> html "Dados inválidos"
 
+postEdit :: ActionM ()
+postEdit = do
+    gameId <- pathParam "id"
+    requestBody <- body
+    let formData = Format.parseFormData requestBody
+
+    case (lookup "name" formData, lookup "platform" formData) of
+        (Just name, Just platform) -> do
+            let played = lookup "played" formData == Just "on"
+            let score = lookup "score" formData
+            let scoreDouble = if not played || score == Just "" || score == Just "0" then 0.0 else (read (maybe "0" id score) :: Double)
+            let platinumed = played && lookup "platinumed" formData == Just "on"
+            let maybeCoverUrl = case lookup "cover_url" formData of
+                    Just "" -> Nothing
+                    Just url -> Just (T.pack url)
+                    Nothing -> Nothing
+
+            result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed
+            case result of
+                Right _ -> redirect "/backlog"
+                Left msg -> html $ TL.pack $ "Erro ao atualizar: " ++ msg
+        _ -> html "Dados inválidos para edição"
+
 postConfirm :: ActionM ()
 postConfirm = do
     requestBody <- body
@@ -150,6 +173,8 @@ getBacklog = do
     maybePlatform <- queryParamMaybe "platform" :: ActionM (Maybe TL.Text)
     maybeSort <- queryParamMaybe "sort" :: ActionM (Maybe TL.Text)
     maybeSearch <- queryParamMaybe "search" :: ActionM (Maybe TL.Text)
+    maybeWantToPlayParam <- queryParamMaybe "want_to_play" :: ActionM (Maybe TL.Text)
+    maybePlatinumedParam <- queryParamMaybe "platinumed" :: ActionM (Maybe TL.Text)
 
     let platformFilter = case maybePlatform of
             Nothing -> ""
@@ -163,12 +188,15 @@ getBacklog = do
             Just "score" -> True
             _ -> False
 
+    let wantToPlayFilter = if maybeWantToPlayParam == Just "on" then Just True else Nothing
+    let platinumedFilter = if maybePlatinumedParam == Just "on" then Just True else Nothing
+
     case mUserId of
         Just userIdStr -> do
             let userId = read userIdStr :: Int
             allGames <- liftIO $ DB.getGames userId
 
-            let filteredGames = Dt.filterGames allGames platformFilter searchFilter
+            let filteredGames = Dt.filterGames allGames platformFilter searchFilter wantToPlayFilter platinumedFilter
 
             let sortedGames = if sortByScore
                                 then sortBy (\a b -> compare (Game.score b) (Game.score a)) filteredGames

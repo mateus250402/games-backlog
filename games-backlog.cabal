@@ -26,6 +26,7 @@ executable games-backlog
                       Models.Games,
                       Pages.AddGame,
                       Pages.Backlog,
+                      Components.EditModal,
                       Pages.Confirm,
                       Pages.Index,
                       Pages.Login,
@@ -40,7 +41,7 @@ executable games-backlog
     default-language: Haskell2010
     other-extensions: OverloadedStrings
 
-    -- Dependências 
+    -- Dependências
     build-depends:    base ^>=4.18.3.0,
                       scotty,
                       lucid,

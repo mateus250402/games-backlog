@@ -111,6 +111,19 @@ deleteGame gameId = do
     execute conn "DELETE FROM games WHERE id = ?" (Only gameId)
     close conn
 
+updateGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> IO (Either String ())
+updateGame gameId title score platform maybeCoverUrl played platinumed = do
+    conn <- connectDB
+    result <- try $ do
+        execute conn "UPDATE games SET title = ?, score = ?, platform = ?, cover_url = ?, jogado = ?, platinado = ? WHERE id = ?"
+                (title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int, gameId)
+        close conn
+        return ()
+
+    case result of
+        Right _ -> return $ Right ()
+        Left (_ :: SomeException) -> return $ Left "Erro ao atualizar jogo no banco de dados"
+
 authenticateUser :: Text -> Text -> IO (Either String Int)
 authenticateUser email password = do
     let hashedPassword = hashPassword password
