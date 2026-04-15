@@ -93,7 +93,7 @@ renderRecommendedCard (GameResult title platforms year coverUrl genres themes) =
                     mapM_ (\g -> span_ [class_ "badge rounded-pill", style_ "background: #e3f2fd; color: #1976d2; font-size: 0.7rem;"] $ toHtml g) (take 2 genres)
                     mapM_ (\t -> span_ [class_ "badge rounded-pill", style_ "background: #f3e5f5; color: #7b1fa2; font-size: 0.7rem;"] $ toHtml t) (take 1 themes)
 
-                a_ [ href_ $ "https://www.youtube.com/results?search_query=" <> T.replace " " "+" title <> "+review"
+                a_ [ href_ $ "https://www.youtube.com/results?search_query=" <> T.replace " " "+" title <> "+game review"
                    , target_ "_blank"
                    , class_ "btn btn-sm btn-outline-danger"
                    , style_ "position: relative; z-index: 2; padding: 0.1rem 0.4rem; font-size: 0.75rem;"

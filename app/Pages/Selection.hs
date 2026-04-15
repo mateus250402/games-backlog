@@ -12,6 +12,7 @@ gameSelectionPage originalName score originalPlatform played platinumed maybeSou
     head_ $ do
         title_ "Selecionar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
+        meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         link_ [rel_ "stylesheet", href_ "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"]
         style_ customStyle
 

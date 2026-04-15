@@ -10,7 +10,7 @@ import Models.Games (Game(..))
 -- Componente de Card de Jogo reutilizável
 -- Aceita um Game e um booleano que indica se o card deve ser clicável para abrir o modal de edição
 gameCard :: Game -> Bool -> Html ()
-gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed _ _) isClickable =
+gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed gGenres gThemes) isClickable =
     let (cardBg, cardBorder) = if not gPlayed
             then ("#f0f0f0", "#999999")
             else case gPlatform of
@@ -44,6 +44,10 @@ gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed _ _) is
                 , if gPlayed then "true" else "false"
                 , "', '"
                 , if gPlatinumed then "true" else "false"
+                , "', '"
+                , maybe "" (T.replace "'" "\\'") gGenres
+                , "', '"
+                , maybe "" (T.replace "'" "\\'") gThemes
                 , "')"
                 ]
             ]
@@ -82,11 +86,11 @@ gameCardStyles = T.concat
 gameCardMobileStyles :: Text
 gameCardMobileStyles = T.concat
     [ "@media (max-width: 576px) { "
-    , "  .game-card { height: 120px; } "
-    , "  .card-text-container { gap: 0px !important; justify-content: center !important; } "
-    , "  .game-title { font-size: 0.95rem; line-height: 1.1; max-width: 200px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0 !important; padding-bottom: 0 !important; } "
-    , "  .game-info { font-size: 0.75rem; line-height: 1.1; margin-top: 0 !important; padding-top: 0 !important; opacity: 0.9; } "
-    , "  .game-img-col, .game-cover { width: 100px; height: 120px; } "
-    , "  .game-col { height: 120px; } "
+    , "  .game-card { height: auto; min-height: 250px; border-radius: 1rem; margin-bottom: 0px; } "
+    , "  .game-title { font-size: 1rem; line-height: 1.2; margin-bottom: 4px !important; } "
+    , "  .game-info { font-size: 0.85rem; } "
+    , "  .game-img-col, .game-cover { width: 100% !important; height: 180px !important; border-radius: 1rem 1rem 0 0 !important; } "
+    , "  .game-col { height: auto; padding: 0.6rem !important; } "
+    , "  .platinum-tag { top: 6px; right: 6px; font-size: 1rem; padding: 2px 8px; } "
     , "}"
     ]

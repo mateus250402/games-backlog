@@ -102,7 +102,7 @@ searchRecommendations criteria excludeTitles = do
           ]
 
     let themeMap =
-          [ ("Action", "1"), ("Fantasy", "17"), ("Science fiction", "18"), ("Horror", "19")
+          [ ("Fantasy", "17"), ("Science fiction", "18"), ("Horror", "19")
           , ("Survival", "21"), ("Historical", "22"), ("Stealth", "27"), ("Comedy", "20")
           , ("Business", "23"), ("Drama", "31"), ("Non-fiction", "32"), ("Sandbox", "33")
           , ("Educational", "34"), ("Kids", "35"), ("Open world", "38"), ("Warfare", "39")
@@ -193,8 +193,8 @@ searchRecommendations criteria excludeTitles = do
                 let avg = if count > 0 then sumScore / fromIntegral count else 0
                     volumeScore = logBase 2 (fromIntegral count + 1) * 3.0
                     baseWeight = volumeScore + (avg * 1.2)
-                    -- Diminui significativamente o peso do tema "Action" (Ação) para não dominar as recomendações
-                    weight = if T.toLower (T.strip name) == "action" then baseWeight * 0.3 else baseWeight
+                    -- Ignora completamente o gênero/tema "Action" (Ação) para não poluir as recomendações
+                    weight = if T.toLower (T.strip name) == "action" then 0.0 else baseWeight
                 in (name, weight)) stats
         in reverse $ sortOn snd scored
 

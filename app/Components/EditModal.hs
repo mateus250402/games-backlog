@@ -23,6 +23,10 @@ editModal = do
                             label_ [class_ "form-label"] "Título"
                             input_ [type_ "text", id_ "modal-title-input", name_ "name", class_ "form-control", required_ ""]
 
+                        div_ [id_ "modal-tags-container", class_ "mb-3"] $ do
+                            div_ [id_ "modal-genres-tags", class_ "d-flex flex-wrap gap-1 mb-1"] ""
+                            div_ [id_ "modal-themes-tags", class_ "d-flex flex-wrap gap-1"] ""
+
                         div_ [class_ "mb-3", id_ "modal-score-container"] $ do
                             label_ [class_ "form-label"] "Nota (0-10)"
                             input_ [type_ "number", id_ "modal-score-input", name_ "score", step_ "0.1", min_ "0", max_ "10", class_ "form-control"]
@@ -54,7 +58,7 @@ editModal = do
 editModalScripts :: Html ()
 editModalScripts = script_ $ T.unlines
     [ "let currentGameId = null;"
-    , "function showGameDetails(id, title, score, platform, coverUrl, played, platinumed) {"
+    , "function showGameDetails(id, title, score, platform, coverUrl, played, platinumed, genres, themes) {"
     , "  currentGameId = id;"
     , "  document.getElementById('edit-form').action = '/edit/' + id;"
     , "  document.getElementById('modal-title-input').value = title;"
@@ -64,6 +68,30 @@ editModalScripts = script_ $ T.unlines
     , "  document.getElementById('modal-played-input').checked = (played === 'true');"
     , "  document.getElementById('modal-platinum-input').checked = (platinumed === 'true');"
     , "  toggleModalScore();"
+    , ""
+    , "  const genresContainer = document.getElementById('modal-genres-tags');"
+    , "  const themesContainer = document.getElementById('modal-themes-tags');"
+    , "  genresContainer.innerHTML = '';"
+    , "  themesContainer.innerHTML = '';"
+    , ""
+    , "  if (genres) {"
+    , "    genres.split(',').forEach(g => {"
+    , "      const span = document.createElement('span');"
+    , "      span.className = 'badge rounded-pill bg-info text-dark';"
+    , "      span.innerText = g.trim();"
+    , "      genresContainer.appendChild(span);"
+    , "    });"
+    , "  }"
+    , ""
+    , "  if (themes) {"
+    , "    themes.split(',').forEach(t => {"
+    , "      const span = document.createElement('span');"
+    , "      span.className = 'badge rounded-pill bg-light text-dark border';"
+    , "      span.innerText = t.trim();"
+    , "      themesContainer.appendChild(span);"
+    , "    });"
+    , "  }"
+    , ""
     , "  const coverImg = document.getElementById('modal-cover');"
     , "  if (coverUrl && coverUrl !== '') {"
     , "    coverImg.src = coverUrl;"

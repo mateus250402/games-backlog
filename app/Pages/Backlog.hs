@@ -14,6 +14,7 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter platinumedFi
     head_ $ do
         title_ "Meu Backlog - Games Backlog"
         meta_ [charset_ "utf-8"]
+        meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         link_ [rel_ "stylesheet", href_ "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"]
         style_ customStyle
     body_ [] $ do
@@ -60,7 +61,7 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter platinumedFi
             h2_ [class_ "mt-4 mb-3 text-secondary"] "Jogos Salvos"
             if null games
                 then p_ [class_ "text-center text-muted fs-4"] "Nenhum jogo salvo ainda."
-                else div_ [class_ "row row-cols-1 row-cols-sm-2 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-4"] $
+                else div_ [class_ "row row-cols-2 row-cols-sm-2 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-2 g-sm-4"] $
                         mapM_ (\g -> div_ [class_ "col"] $ gameCard g True) games
 
 customStyle :: Text
@@ -71,7 +72,7 @@ customStyle = T.concat
     , ".delete-btn { width: 28px; height: 28px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; line-height: 1; opacity: 0.6; transition: opacity 0.2s, transform 0.2s; background: transparent; border: none; color: #666; }"
     , ".delete-btn:hover { opacity: 1; transform: scale(1.1); color: #dc3545; }"
     , ".game-card:hover .delete-btn { opacity: 0.8; }"
-    , ".container-mobile { width: 100%; padding-right: var(--bs-gutter-x, .75rem); padding-left: var(--bs-gutter-x, .75rem); margin-right: auto; margin-left: auto; } @media (min-width: 576px) { .container-mobile { max-width: 540px; } } @media (min-width: 768px) { .container-mobile { max-width: 720px; } } @media (min-width: 992px) { .container-mobile { max-width: 960px; } } @media (min-width: 1200px) { .container-mobile { max-width: 1140px; } } @media (min-width: 1400px) { .container-mobile { max-width: 1320px; } } @media (max-width: 576px) { .container-mobile { padding-left: 5px; padding-right: 5px; max-width: 100%; } }"
-    , "@media (max-width: 576px) { .game-card-container { flex: 1 1 100% !important; max-width: 100% !important; min-width: 100% !important; margin-right: 0 !important; margin-left: 0 !important; margin-bottom: 1rem !important; } }"
+    , ".container-mobile { width: 100%; padding-right: var(--bs-gutter-x, .75rem); padding-left: var(--bs-gutter-x, .75rem); margin-right: auto; margin-left: auto; } @media (min-width: 576px) { .container-mobile { max-width: 540px; } } @media (min-width: 768px) { .container-mobile { max-width: 720px; } } @media (min-width: 992px) { .container-mobile { max-width: 960px; } } @media (min-width: 1200px) { .container-mobile { max-width: 1140px; } } @media (min-width: 1400px) { .container-mobile { max-width: 1320px; } } @media (max-width: 576px) { .container-mobile { padding-left: 10px; padding-right: 10px; max-width: 100%; } .row { --bs-gutter-x: 0.5rem; } }"
+    , "@media (max-width: 576px) { .btn { padding: 0.5rem 0.75rem; font-size: 0.9rem; } .form-control, .form-select { font-size: 16px; } }"
     , gameCardMobileStyles
     ]

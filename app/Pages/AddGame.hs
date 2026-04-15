@@ -10,7 +10,9 @@ addGamePage maybeName maybeSource = html_ $ do
     head_ $ do
         title_ "Adicionar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
+        meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         link_ [ rel_ "stylesheet" , href_ "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"]
+        style_ ".container { max-width: 600px; } @media (max-width: 576px) { .container { padding-left: 15px; padding-right: 15px; } .card { padding: 1.5rem !important; } .form-control, .form-select, .btn { font-size: 16px; } }"
 
 
     nav_ [class_ "navbar navbar-expand-lg navbar-dark bg-primary"] $ do
