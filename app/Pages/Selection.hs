@@ -7,8 +7,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Api.Igdb (GameResult(..))
 
-gameSelectionPage :: Text -> Text -> Text -> Bool -> Bool -> [GameResult] -> Html ()
-gameSelectionPage originalName score originalPlatform played platinumed gameResults = html_ $ do
+gameSelectionPage :: Text -> Text -> Text -> Bool -> Bool -> Maybe Text -> [GameResult] -> Html ()
+gameSelectionPage originalName score originalPlatform played platinumed maybeSource gameResults = html_ $ do
     head_ $ do
         title_ "Selecionar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -25,13 +25,13 @@ gameSelectionPage originalName score originalPlatform played platinumed gameResu
             p_ [class_ "text-center text-muted mb-4"] $ "Encontramos " <> toHtml (show $ length gameResults) <> " jogos com o nome \"" <> toHtml originalName <> "\". Selecione o correto:"
 
             div_ [class_ "row"] $
-                mapM_ (gameSelectionCard score originalPlatform played platinumed) gameResults
+                mapM_ (gameSelectionCard score originalPlatform played platinumed maybeSource) gameResults
 
             div_ [class_ "text-center mt-4"] $
                 a_ [href_ "/add", class_ "btn btn-secondary"] "Voltar"
 
-gameSelectionCard :: Text -> Text -> Bool -> Bool -> GameResult -> Html ()
-gameSelectionCard score originalPlatform played platinumed (GameResult name _ year coverUrl) =
+gameSelectionCard :: Text -> Text -> Bool -> Bool -> Maybe Text -> GameResult -> Html ()
+gameSelectionCard score originalPlatform played platinumed maybeSource (GameResult name _ year coverUrl _ _) =
     div_ [class_ "col-md-6 col-lg-4 mb-4"] $
         div_ [class_ "card h-100 game-selection-card"] $ do
             case coverUrl of
@@ -54,6 +54,9 @@ gameSelectionCard score originalPlatform played platinumed (GameResult name _ ye
                     input_ [type_ "hidden", name_ "platform", value_ originalPlatform]
                     input_ [type_ "hidden", name_ "played", value_ (if played then "on" else "")]
                     input_ [type_ "hidden", name_ "platinumed", value_ (if platinumed then "on" else "")]
+                    case maybeSource of
+                        Just src -> input_ [type_ "hidden", name_ "source", value_ src]
+                        Nothing -> return ()
                     case coverUrl of
                         Just url -> input_ [type_ "hidden", name_ "cover_url", value_ url]
                         Nothing -> input_ [type_ "hidden", name_ "cover_url", value_ ""]

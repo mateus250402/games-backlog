@@ -5,8 +5,8 @@ module Pages.AddGame where
 import Lucid
 import qualified Data.Text as T
 
-addGamePage :: Html ()
-addGamePage = html_ $ do
+addGamePage :: Maybe T.Text -> Maybe T.Text -> Html ()
+addGamePage maybeName maybeSource = html_ $ do
     head_ $ do
         title_ "Adicionar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -26,9 +26,12 @@ addGamePage = html_ $ do
         div_ [class_ "container mt-5"] $ do
             h1_ [class_ "mb-4"] "Adicionar Jogo"
             form_ [method_ "post", action_ "/add", class_ "card p-4 shadow-sm"] $ do
+                case maybeSource of
+                    Just src -> input_ [type_ "hidden", name_ "source", value_ src]
+                    Nothing -> return ()
                 div_ [class_ "mb-3"] $ do
                     label_ [class_ "form-label"] "Nome do Jogo: "
-                    input_ [type_ "text", name_ "name", required_ "", class_ "form-control"]
+                    input_ [type_ "text", name_ "name", required_ "", class_ "form-control", value_ (maybe "" id maybeName)]
                 div_ [class_ "mb-3", id_ "score-container"] $ do
                     label_ [class_ "form-label"] "Nota (0-10): "
                     input_ [type_ "number", name_ "score", id_ "score-input", min_ "0", max_ "10", step_ "0.1", class_ "form-control", placeholder_ "Sem nota"]

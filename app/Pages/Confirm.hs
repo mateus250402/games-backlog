@@ -8,8 +8,8 @@ import qualified Data.Text as T
 import Models.Games (Game(..))
 import Components.GameCard (gameCard, gameCardStyles, gameCardMobileStyles)
 
-confirmPage :: Text -> Text -> Text -> Maybe Text -> Bool -> Bool -> Html ()
-confirmPage name score platform maybeCover played platinumed = html_ $ do
+confirmPage :: Text -> Text -> Text -> Maybe Text -> Bool -> Bool -> Maybe Text -> Html ()
+confirmPage name score platform maybeCover played platinumed maybeSource = html_ $ do
     head_ $ do
         title_ "Confirmar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -27,7 +27,7 @@ confirmPage name score platform maybeCover played platinumed = html_ $ do
                 div_ [class_ "col-12 col-sm-10 col-md-8 col-lg-6"] $
                     -- Criamos um objeto Game temporário (id 0) para exibição no card
                     -- O segundo parâmetro 'False' indica que o card não deve ser clicável nesta página
-                    gameCard (Game 0 name (if score == "" then 0 else read (T.unpack score)) platform maybeCover played platinumed) False
+                    gameCard (Game 0 name (if score == "" then 0 else read (T.unpack score)) platform maybeCover played platinumed Nothing Nothing) False
 
             div_ [class_ "row justify-content-center mt-4"] $
                 div_ [class_ "col-lg-8 text-center"] $ do
@@ -37,6 +37,9 @@ confirmPage name score platform maybeCover played platinumed = html_ $ do
                         input_ [type_ "hidden", name_ "platform", value_ platform]
                         input_ [type_ "hidden", name_ "played", value_ (if played then "on" else "")]
                         input_ [type_ "hidden", name_ "platinumed", value_ (if platinumed then "on" else "")]
+                        case maybeSource of
+                            Just src -> input_ [type_ "hidden", name_ "source", value_ src]
+                            Nothing -> return ()
                         case maybeCover of
                             Just coverUrl -> input_ [type_ "hidden", name_ "cover_url", value_ coverUrl]
                             Nothing -> input_ [type_ "hidden", name_ "cover_url", value_ ""]

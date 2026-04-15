@@ -13,8 +13,10 @@ data Game = Game
     , cover_url :: Maybe Text
     , played :: Bool
     , platinumed :: Bool
+    , genres :: Maybe Text -- Gêneros separados por vírgula para estatísticas
+    , themes :: Maybe Text -- Temas separados por vírgula para estatísticas
     } deriving (Show, Eq)
 
 -- Implementação da instância FromRow para mapear resultados de consultas SQL para o tipo Game
 instance FromRow Game where
-    fromRow = Game <$> field <*> field <*> field <*> field <*> field <*> field <*> field -- id, title, score, platform, cover_url, played, platinumed
+    fromRow = Game <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field

@@ -38,3 +38,9 @@ main = do
         post "/edit/:id" $ Session.requireAuth $ do Hd.postEdit
 
         post "/delete/:id" $ Session.requireAuth $ do Hd.postDelete
+
+        get "/recomend" $ Session.requireAuth $ do Hd.getRecomend
+        post "/recomend" $ Session.requireAuth $ do Hd.postRecomend
+        post "/ignore-recomend" $ Session.requireAuth $ do Hd.postIgnoreRecomend
+
+        get "/migrate-metadata" $ Session.requireAuth $ do Hd.getMigrateMetadata

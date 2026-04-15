@@ -4,13 +4,14 @@
 
 module Utils.Handles where
 
-import Web.Scotty (ActionM, body, html, redirect, pathParam, queryParam, queryParamMaybe)
+import Web.Scotty (ActionM, body, html, redirect, pathParam, queryParam, queryParamMaybe, header)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Control.Monad.IO.Class (liftIO)
 import Data.List (sortBy)
 import Lucid (renderText)
 import Control.Exception (SomeException)
+import Text.Read (readMaybe)
 
 -- Módulos internos
 import qualified DB.DB as DB
@@ -26,6 +27,7 @@ import qualified Api.Igdb as Igdb
 import qualified Utils.Data as Dt
 import qualified Models.Games as Game
 import qualified Pages.Selection as Selection
+import qualified Pages.Recomendation as Recomend
 
 postLogin :: ActionM ()
 postLogin = do
@@ -63,6 +65,7 @@ postAdd = do
     let wantToPlay = lookup "want_to_play" formData == Just "on"
     let played = not wantToPlay
     let platinumed = lookup "platinumed" formData == Just "on"
+    let maybeSource = lookup "source" formData
 
     case (lookup "name" formData, lookup "platform" formData) of -- Procura name e platform no formData
         (Just name, Just platform) -> do
@@ -78,6 +81,7 @@ postAdd = do
                         , "&platform=", TL.pack platform
                         , "&played=", if played then "on" else ""
                         , "&platinumed=", if platinumed then "on" else ""
+                        , case maybeSource of Just s -> "&source=" <> TL.pack s; Nothing -> ""
                         ]
 
                 [singleGame] ->  -- Um único jogo encontrado, redireciona para a página de confirmação com cover_url
@@ -88,10 +92,11 @@ postAdd = do
                         , "&cover_url=", maybe "" TL.fromStrict (Igdb.grCoverUrl singleGame)
                         , "&played=", if played then "on" else ""
                         , "&platinumed=", if platinumed then "on" else ""
+                        , case maybeSource of Just s -> "&source=" <> TL.pack s; Nothing -> ""
                         ]
 
                 multipleGames -> -- Múltiplos jogos encontrados, mostra a página de seleção
-                    html $ renderText $ Selection.gameSelectionPage (T.pack name) (T.pack finalScore) (T.pack platform) played platinumed multipleGames
+                    html $ renderText $ Selection.gameSelectionPage (T.pack name) (T.pack finalScore) (T.pack platform) played platinumed (fmap T.pack maybeSource) multipleGames
         _ -> html "Dados inválidos"
 
 postEdit :: ActionM ()
@@ -111,9 +116,22 @@ postEdit = do
                     Just url -> Just (T.pack url)
                     Nothing -> Nothing
 
-            result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed
+            -- Buscar gêneros e temas na API do IGDB antes de atualizar
+            -- Usamos uma busca exata pelo nome para garantir os metadados corretos
+            gameResults <- liftIO $ Igdb.searchMultipleGames (T.pack name)
+            let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower (T.pack name)) gameResults of
+                    (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                    _     -> case gameResults of
+                               (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                               _     -> (Nothing, Nothing)
+
+            result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
             case result of
-                Right _ -> redirect "/backlog"
+                Right _ -> do
+                    referer <- header "Referer"
+                    case referer of
+                        Just ref -> redirect ref
+                        Nothing -> redirect "/backlog"
                 Left msg -> html $ TL.pack $ "Erro ao atualizar: " ++ msg
         _ -> html "Dados inválidos para edição"
 
@@ -136,9 +154,20 @@ postConfirm = do
                     Just url -> Just (T.pack url)
                     Nothing -> Nothing
 
-            result <- liftIO $ DB.insertGame userId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed
+            -- Buscar gêneros e temas na API do IGDB antes de inserir
+            -- Tenta encontrar o jogo exato retornado pela busca para salvar os gêneros/temas corretos no banco
+            gameResults <- liftIO $ Igdb.searchMultipleGames (T.pack name)
+            let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower (T.pack name)) gameResults of
+                    (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                    _     -> case gameResults of
+                               (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                               _     -> (Nothing, Nothing)
+
+            result <- liftIO $ DB.insertGame userId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
             case result of
-                Right _ -> redirect "/add"
+                Right _ -> case lookup "source" formData of
+                               Just "recomend" -> redirect "/recomend"
+                               _ -> redirect "/add"
                 Left msg -> html $ TL.pack $ "Erro ao salvar: " ++ msg
         _ -> html "Dados inválidos ou usuário não autenticado" -- Captura qualquer outro caso
 
@@ -146,7 +175,10 @@ postDelete :: ActionM ()
 postDelete = do
     gameId <- pathParam "id"
     liftIO $ DB.deleteGame gameId
-    redirect "/backlog"
+    referer <- header "Referer"
+    case referer of
+        Just ref -> redirect ref
+        Nothing -> redirect "/backlog"
 
 getLogout :: ActionM ()
 getLogout = do
@@ -163,7 +195,16 @@ getRegister :: ActionM ()
 getRegister = html $ renderText Register.registerPage
 
 getAdd :: ActionM ()
-getAdd = html $ renderText AddGame.addGamePage
+getAdd = do
+    maybeNameParam <- queryParamMaybe "name" :: ActionM (Maybe TL.Text)
+    let maybeName = case maybeNameParam of
+            Just n -> Just (TL.toStrict n)
+            Nothing -> Nothing
+    maybeSourceParam <- queryParamMaybe "source" :: ActionM (Maybe TL.Text)
+    let maybeSource = case maybeSourceParam of
+            Just s -> Just (TL.toStrict s)
+            Nothing -> Nothing
+    html $ renderText $ AddGame.addGamePage maybeName maybeSource
 
 getBacklog :: ActionM ()
 getBacklog = do
@@ -184,9 +225,10 @@ getBacklog = do
             Nothing -> ""
             Just s -> TL.toStrict s
 
-    let sortByScore = case maybeSort of
-            Just "score" -> True
-            _ -> False
+    let sortFilter = case maybeSort of
+            Just "score" -> "score"
+            Just "recent" -> "recent"
+            _ -> "alpha"
 
     let wantToPlayFilter = if maybeWantToPlayParam == Just "on" then Just True else Nothing
     let platinumedFilter = if maybePlatinumedParam == Just "on" then Just True else Nothing
@@ -198,11 +240,12 @@ getBacklog = do
 
             let filteredGames = Dt.filterGames allGames platformFilter searchFilter wantToPlayFilter platinumedFilter
 
-            let sortedGames = if sortByScore
-                                then sortBy (\a b -> compare (Game.score b) (Game.score a)) filteredGames
-                                else filteredGames
+            let sortedGames = case sortFilter of
+                                "score" -> sortBy (\a b -> compare (Game.score b) (Game.score a)) filteredGames
+                                "recent" -> sortBy (\a b -> compare (Game.gameId b) (Game.gameId a)) filteredGames
+                                _ -> sortBy (\a b -> compare (T.toLower $ Game.title a) (T.toLower $ Game.title b)) filteredGames
 
-            html $ renderText $ Backlog.backlogPage sortedGames
+            html $ renderText $ Backlog.backlogPage searchFilter platformFilter sortFilter (wantToPlayFilter == Just True) (platinumedFilter == Just True) sortedGames
         Nothing -> redirect "/login"
 
 getConfirm :: ActionM ()
@@ -223,7 +266,12 @@ getConfirm = do
             Just url | not (TL.null url) -> Just (TL.toStrict url)
             _ -> Nothing
 
-    html $ renderText $ Confirm.confirmPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) maybeCover played platinumed
+    maybeSourceParam <- queryParamMaybe "source" :: ActionM (Maybe TL.Text)
+    let maybeSource = case maybeSourceParam of
+            Just s | not (TL.null s) -> Just (TL.toStrict s)
+            _ -> Nothing
+
+    html $ renderText $ Confirm.confirmPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) maybeCover played platinumed maybeSource
 
 getGameSelection :: ActionM ()
 getGameSelection = do
@@ -236,5 +284,102 @@ getGameSelection = do
     let played = maybePlayed == Just "on"
     let platinumed = maybePlatinumed == Just "on"
 
+    maybeSourceParam <- queryParamMaybe "source" :: ActionM (Maybe TL.Text)
+    let maybeSource = case maybeSourceParam of
+            Just s | not (TL.null s) -> Just (TL.toStrict s)
+            _ -> Nothing
+
     gameResults <- liftIO $ Igdb.searchMultipleGames (TL.toStrict name)
-    html $ renderText $ Selection.gameSelectionPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) played platinumed gameResults
+    html $ renderText $ Selection.gameSelectionPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) played platinumed maybeSource gameResults
+
+getRecomend :: ActionM ()
+getRecomend = do
+    mUserId <- Session.sessionLookup "user_id"
+
+    maybeMinYear <- queryParamMaybe "min_year" :: ActionM (Maybe TL.Text)
+    maybeMaxYear <- queryParamMaybe "max_year" :: ActionM (Maybe TL.Text)
+
+    let minYear = maybeMinYear >>= (readMaybe . TL.unpack)
+    let maxYear = maybeMaxYear >>= (readMaybe . TL.unpack)
+
+    case mUserId of
+        Just userIdStr -> do
+            let userId = read userIdStr :: Int
+            allGames <- liftIO $ DB.getGames userId
+
+            -- 1. Filtrar jogos que o usuário já jogou para extrair preferências
+            let playedGames = filter Game.played allGames
+
+            -- 2. Extrair estatísticas de gêneros e temas
+            let genreStats = Recomend.processStats Game.genres playedGames
+            let themeStats = Recomend.processStats Game.themes playedGames
+
+            -- 3. Preparar critérios para a API com filtros de ano
+            let criteria = Igdb.RecommendationCriteria genreStats themeStats minYear maxYear
+
+            -- 4. Lista de títulos para excluir (já jogados, no backlog, ou ignorados)
+            ignoredTitles <- liftIO $ DB.getIgnoredRecommendations userId
+            let excludeTitles = map Game.title allGames ++ ignoredTitles
+
+            -- 5. Buscar na API do IGDB
+            recommended <- liftIO $ Igdb.searchRecommendations criteria excludeTitles
+
+            html $ renderText $ Recomend.recomendPage recommended minYear maxYear
+        Nothing -> redirect "/login"
+
+postRecomend :: ActionM ()
+postRecomend = redirect "/recomend"
+
+getMigrateMetadata :: ActionM ()
+getMigrateMetadata = do
+    mUserId <- Session.sessionLookup "user_id"
+    case mUserId of
+        Just userIdStr -> do
+            let userId = read userIdStr :: Int
+            allGames <- liftIO $ DB.getGames userId
+
+            -- Filtra apenas os jogos que não possuem gêneros ou temas preenchidos
+            let gamesToUpdate = filter (\g -> Game.genres g == Nothing || Game.themes g == Nothing) allGames
+
+            liftIO $ putStrLn $ "Iniciando migração para " ++ show (length gamesToUpdate) ++ " jogos do usuário " ++ userIdStr
+
+            -- Processa cada jogo buscando na API e atualizando o banco
+            liftIO $ mapM_ (updateSingleGame userId) gamesToUpdate
+
+            redirect "/recomend"
+        Nothing -> redirect "/login"
+  where
+    updateSingleGame userId g = do
+        putStrLn $ "Migrando: " ++ T.unpack (Game.title g)
+        gameResults <- Igdb.searchMultipleGames (Game.title g)
+        -- Tenta encontrar o match exato ou pega o primeiro resultado
+        let maybeResult = case filter (\r -> T.toLower (Igdb.grName r) == T.toLower (Game.title g)) gameResults of
+                (res:_) -> Just res
+                [] -> case gameResults of
+                    (res:_) -> Just res
+                    [] -> Nothing
+
+        case maybeResult of
+            Just res -> do
+                let gList = Just $ T.intercalate "," (Igdb.grGenres res)
+                    tList = Just $ T.intercalate "," (Igdb.grThemes res)
+                _ <- DB.updateGame (Game.gameId g) (Game.title g) (Game.score g) (Game.platform g) (Game.cover_url g) (Game.played g) (Game.platinumed g) gList tList
+                putStrLn $ "Sucesso: " ++ T.unpack (Game.title g)
+            Nothing -> putStrLn $ "Não encontrado na API: " ++ T.unpack (Game.title g)
+
+postIgnoreRecomend :: ActionM ()
+postIgnoreRecomend = do
+    requestBody <- body
+    let formData = Format.parseFormData requestBody
+    mUserId <- Session.sessionLookup "user_id"
+    
+    case (mUserId, lookup "title" formData) of
+        (Just userIdStr, Just title) -> do
+            let userId = read userIdStr :: Int
+            liftIO $ DB.ignoreRecommendation userId (T.pack title)
+            
+            referer <- header "Referer"
+            case referer of
+                Just ref -> redirect ref
+                Nothing -> redirect "/recomend"
+        _ -> redirect "/recomend"

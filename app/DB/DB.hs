@@ -45,6 +45,17 @@ initDB = do
         , "  platform TEXT,"
         , "  jogado INTEGER DEFAULT 0,"
         , "  platinado INTEGER DEFAULT 0,"
+        , "  genres TEXT," -- Lista de gêneros separados por vírgula
+        , "  themes TEXT," -- Lista de temas separados por vírgula
+        , "  FOREIGN KEY (user_id) REFERENCES users (id)"
+        , ")"
+        ]
+
+    execute_ conn $ Query $ T.pack $ unlines
+        [ "CREATE TABLE IF NOT EXISTS ignored_recommendations ("
+        , "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        , "  user_id INTEGER NOT NULL,"
+        , "  title TEXT NOT NULL,"
         , "  FOREIGN KEY (user_id) REFERENCES users (id)"
         , ")"
         ]
@@ -83,13 +94,13 @@ insertUser email password = do
         Right userId -> return $ Right userId
         Left err -> return $ Left $ "Erro ao inserir usuário: " ++ show err
 
-insertGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> IO (Either String Int) -- Retorna String em caso de erro ou Int (gameId) em caso de sucesso
-insertGame userId title score platform maybeCoverUrl played platinumed = do
+insertGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> Maybe Text -> Maybe Text -> IO (Either String Int) -- Retorna String em caso de erro ou Int (gameId) em caso de sucesso
+insertGame userId title score platform maybeCoverUrl played platinumed maybeGenres maybeThemes = do
     conn <- connectDB
 
     result <- try $ do
-        execute conn "INSERT INTO games (user_id, title, score, platform, cover_url, jogado, platinado) VALUES (?, ?, ?, ?, ?, ?, ?)"
-                (userId, title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int)
+        execute conn "INSERT INTO games (user_id, title, score, platform, cover_url, jogado, platinado, genres, themes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                (userId, title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int, maybeGenres, maybeThemes)
         lastId <- lastInsertRowId conn
         close conn
         return $ fromIntegral lastId
@@ -101,7 +112,7 @@ insertGame userId title score platform maybeCoverUrl played platinumed = do
 getGames :: Int -> IO [Game]
 getGames user_id = do
     conn <- connectDB
-    games <- query conn "SELECT id, title, score, platform, cover_url, jogado, platinado FROM games WHERE user_id = ? ORDER BY title ASC" (Only user_id)
+    games <- query conn "SELECT id, title, score, platform, cover_url, jogado, platinado, genres, themes FROM games WHERE user_id = ? ORDER BY title ASC" (Only user_id)
     close conn
     return games
 
@@ -111,12 +122,12 @@ deleteGame gameId = do
     execute conn "DELETE FROM games WHERE id = ?" (Only gameId)
     close conn
 
-updateGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> IO (Either String ())
-updateGame gameId title score platform maybeCoverUrl played platinumed = do
+updateGame :: Int -> Text -> Double -> Text -> Maybe Text -> Bool -> Bool -> Maybe Text -> Maybe Text -> IO (Either String ())
+updateGame gameId title score platform maybeCoverUrl played platinumed maybeGenres maybeThemes = do
     conn <- connectDB
     result <- try $ do
-        execute conn "UPDATE games SET title = ?, score = ?, platform = ?, cover_url = ?, jogado = ?, platinado = ? WHERE id = ?"
-                (title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int, gameId)
+        execute conn "UPDATE games SET title = ?, score = ?, platform = ?, cover_url = ?, jogado = ?, platinado = ?, genres = ?, themes = ? WHERE id = ?"
+                (title, score, platform, maybeCoverUrl, if played then 1 else 0 :: Int, if platinumed then 1 else 0 :: Int, maybeGenres, maybeThemes, gameId)
         close conn
         return ()
 
@@ -145,3 +156,16 @@ authenticateUser email password = do
         Right (Just userId) -> return $ Right userId -- Funcionou e encontrou o usuário
         Right Nothing -> return $ Left "E-mail ou senha incorretos" -- Funcionou, mas não encontrou ou senha incorreta
         Left err -> return $ Left $ "Erro no DB" ++ show err
+
+ignoreRecommendation :: Int -> Text -> IO ()
+ignoreRecommendation userId title = do
+    conn <- connectDB
+    execute conn "INSERT INTO ignored_recommendations (user_id, title) VALUES (?, ?)" (userId, title)
+    close conn
+
+getIgnoredRecommendations :: Int -> IO [Text]
+getIgnoredRecommendations userId = do
+    conn <- connectDB
+    rows <- query conn "SELECT title FROM ignored_recommendations WHERE user_id = ?" (Only userId) :: IO [Only Text]
+    close conn
+    return $ map fromOnly rows
