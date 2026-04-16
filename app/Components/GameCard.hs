@@ -21,9 +21,8 @@ gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed gGenres
                 _             -> ("#f8f9fa", "#6c757d")
 
         cardStyle = T.concat
-            [ "background:", cardBg, ";"
+            [ "background:", if gPlatinumed then "rgba(0,0,0,0.05)" else cardBg, ";"
             , "border-bottom: 8px solid ", cardBorder, ";"
-            , "margin-bottom: 12px;"
             , if not gPlayed then "opacity: 0.6; filter: grayscale(0.5);" else ""
             , if isClickable then "cursor: pointer;" else ""
             ]
@@ -53,7 +52,7 @@ gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed gGenres
             ]
             else []
 
-    in div_ ([ class_ "game-card position-relative"
+    in div_ ([ class_ "game-card position-relative h-100 d-flex flex-column"
              , style_ cardStyle
              ] ++ onClickAttr) $ do
         div_ [class_ "game-img-col"] $ do
@@ -77,20 +76,20 @@ gameCardStyles = T.concat
     , ".game-cover { border-radius: 1rem 1rem 0 0; background: #222; height: 200px; width: 100%; object-fit: cover; display: block; }"
     , ".game-title { font-size: 1rem; line-height: 1.2; font-weight: bold; margin-bottom: 0.2rem; }"
     , ".game-info { font-size: 0.8rem; line-height: 1.1; }"
-    , ".game-col { padding: 0.75rem !important; display: flex; flex-direction: column; justify-content: center; flex-grow: 1; }"
+    , ".game-col { padding: 0.75rem !important; display: flex; flex-direction: column; justify-content: flex-start; flex-grow: 1; }"
     , ".game-img-col { padding: 0 !important; display: flex; align-items: center; justify-content: flex-start; background: #f0f0f0; width: 100%; height: 200px; }"
-    , ".platinum-tag { position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, 0.05); color: #4a6fa5; padding: 2px 10px; font-size: 1.1rem; border-radius: 0.8rem; z-index: 20; font-weight: 800; border: 1px solid rgba(0,0,0,0.2); filter: sepia(1) hue-rotate(180deg) brightness(1.1) contrast(1.2); }"
+    , ".platinum-tag { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.3); color: #4a6fa5; padding: 2px 10px; font-size: 1.1rem; border-radius: 0.8rem; z-index: 20; font-weight: 800; border: 1px solid rgba(0,0,0,0.2); filter: sepia(1) hue-rotate(180deg) brightness(1.1) contrast(1.2); }"
     ]
 
 -- Estilos específicos para responsividade (mobile)
 gameCardMobileStyles :: Text
 gameCardMobileStyles = T.concat
     [ "@media (max-width: 576px) { "
-    , "  .game-card { height: auto; min-height: 250px; border-radius: 1rem; margin-bottom: 0px; } "
+    , "  .game-card { height: 100%; min-height: 250px; border-radius: 1rem; margin-bottom: 0px; } "
     , "  .game-title { font-size: 1rem; line-height: 1.2; margin-bottom: 4px !important; } "
     , "  .game-info { font-size: 0.85rem; } "
     , "  .game-img-col, .game-cover { width: 100% !important; height: 180px !important; border-radius: 1rem 1rem 0 0 !important; } "
-    , "  .game-col { height: auto; padding: 0.6rem !important; } "
+    , "  .game-col { padding: 0.6rem !important; flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start; } "
     , "  .platinum-tag { top: 6px; right: 6px; font-size: 1rem; padding: 2px 8px; } "
     , "}"
     ]

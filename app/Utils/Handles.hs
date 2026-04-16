@@ -141,9 +141,10 @@ postConfirm = do
     let formData = Format.parseFormData requestBody
     mUserId <- Session.sessionLookup "user_id"
 
-    case (mUserId, lookup "name" formData, lookup "score" formData, lookup "platform" formData) of
-        (Just userIdStr, Just name, Just score, Just platform) -> do
+    case (mUserId, lookup "name" formData, lookup "platform" formData) of
+        (Just userIdStr, Just name, Just platform) -> do
             let userId = read userIdStr :: Int
+            let score = maybe "" id (lookup "score" formData)
             let scoreDouble = if score == "" || score == "0" then 0.0 else read score :: Double
             let played = lookup "played" formData == Just "on"
             let platinumed = lookup "platinumed" formData == Just "on"
@@ -227,8 +228,8 @@ getBacklog = do
 
     let sortFilter = case maybeSort of
             Just "score" -> "score"
-            Just "recent" -> "recent"
-            _ -> "alpha"
+            Just "alpha" -> "alpha"
+            _ -> "recent"
 
     let wantToPlayFilter = if maybeWantToPlayParam == Just "on" then Just True else Nothing
     let platinumedFilter = if maybePlatinumedParam == Just "on" then Just True else Nothing
@@ -372,12 +373,12 @@ postIgnoreRecomend = do
     requestBody <- body
     let formData = Format.parseFormData requestBody
     mUserId <- Session.sessionLookup "user_id"
-    
+
     case (mUserId, lookup "title" formData) of
         (Just userIdStr, Just title) -> do
             let userId = read userIdStr :: Int
             liftIO $ DB.ignoreRecommendation userId (T.pack title)
-            
+
             referer <- header "Referer"
             case referer of
                 Just ref -> redirect ref
