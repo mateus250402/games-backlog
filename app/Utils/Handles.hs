@@ -168,7 +168,9 @@ postConfirm = do
             case result of
                 Right _ -> case lookup "source" formData of
                                Just "recomend" -> redirect "/recomend"
-                               _ -> redirect "/add"
+                               _ -> case lookup "original_name" formData of
+                                        Just origName -> redirect $ "/game-selection?name=" <> TL.pack origName <> "&score=&platform=PC"
+                                        Nothing -> redirect "/add"
                 Left msg -> html $ TL.pack $ "Erro ao salvar: " ++ msg
         _ -> html "Dados inválidos ou usuário não autenticado" -- Captura qualquer outro caso
 
@@ -308,12 +310,12 @@ getRecomend = do
             let userId = read userIdStr :: Int
             allGames <- liftIO $ DB.getGames userId
 
-            -- 1. Filtrar jogos que o usuário já jogou para extrair preferências
-            let playedGames = filter Game.played allGames
+            -- 1. Filtrar jogos que o usuário já jogou para extrair preferências, e dar nota base aos que quer jogar
+            let processedGames = map (\g -> if Game.played g then g else g { Game.score = 7.5 }) allGames
 
             -- 2. Extrair estatísticas de gêneros e temas
-            let genreStats = Recomend.processStats Game.genres playedGames
-            let themeStats = Recomend.processStats Game.themes playedGames
+            let genreStats = Recomend.processStats Game.genres processedGames
+            let themeStats = Recomend.processStats Game.themes processedGames
 
             -- 3. Preparar critérios para a API com filtros de ano
             let criteria = Igdb.RecommendationCriteria genreStats themeStats minYear maxYear

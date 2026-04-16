@@ -133,49 +133,66 @@ searchRecommendations criteria excludeTitles = do
              <> prefFilter <> minDateFilter <> maxDateFilter
              <> "; limit 500; sort total_rating desc;"
 
+    let trendingQuery = "fields name, platforms.name, first_release_date, cover.url, genres.name, themes.name; "
+                     <> "where first_release_date > 1640995200" -- After Jan 1, 2022
+                     <> minDateFilter <> maxDateFilter
+                     <> "; limit 100; sort total_rating_count desc;"
+
     request' <- parseRequest "https://api.igdb.com/v4/games"
-    let request = setRequestMethod "POST"
+    let mkReq q = setRequestMethod "POST"
                 $ setRequestHeader "Client-ID" ["poa6s33d3kywrcalk2xa52cs4h2bu2"]
                 $ setRequestHeader "Authorization" ["Bearer " <> token]
                 $ setRequestHeader "Content-Type" ["text/plain"]
-                $ setRequestBodyLBS (LBS.pack query)
+                $ setRequestBodyLBS (LBS.pack q)
                 $ request'
 
-    response <- httpLBS request
-    let responseBody = getResponseBody response
+    responsePref <- httpLBS (mkReq query)
+    responseTrending <- httpLBS (mkReq trendingQuery)
 
-    case eitherDecode responseBody :: Either String [Value] of
-        Left _ -> return []
-        Right games -> do
-            let results = mapMaybe parseGameResultSafe games
-            let filtered = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) results
+    let parseBody body = case eitherDecode body :: Either String [Value] of
+            Left _ -> []
+            Right games -> mapMaybe parseGameResultSafe games
 
-            putStrLn $ "DEBUG: Preferências do usuário - Gêneros: " ++ show (map fst rankedGenres)
-            putStrLn $ "DEBUG: Preferências do usuário - Temas: " ++ show (map fst rankedThemes)
+    let prefResults = parseBody (getResponseBody responsePref)
+    let trendingResults = parseBody (getResponseBody responseTrending)
 
-            let scored = if null rankedGenres && null rankedThemes
-                         then map (\g -> (0.0, g)) filtered
-                         else map (\g ->
-                            let s = calculateMatchScore g rankedGenres rankedThemes
-                            in (s, g)) filtered
+    let combinedResults = prefResults ++ trendingResults
+    let uniqueResults = foldr (\g acc -> if any (\x -> grName x == grName g) acc then acc else g:acc) [] combinedResults
 
-            -- Ordena por score descendente; como 'sortBy' é estável, mantém a ordem original da API (total_rating desc) em caso de empate
-            let sortedByMatch = sortBy (\(s1, _) (s2, _) -> compare s2 s1) scored
+    let filtered = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) uniqueResults
 
-            let topScores = take 3 sortedByMatch
-            mapM_ (\(s, g) -> putStrLn $ "DEBUG: Match Score [" ++ T.unpack (grName g) ++ "]: " ++ show s) topScores
+    putStrLn $ "DEBUG: Preferências do usuário - Gêneros: " ++ show (map fst rankedGenres)
+    putStrLn $ "DEBUG: Preferências do usuário - Temas: " ++ show (map fst rankedThemes)
 
-            -- Sorteia os top 3 entre os 10 melhores
-            let top10 = take 10 $ map snd sortedByMatch
-            shuffledTop10 <- shuffleList top10
-            let top3 = take 3 shuffledTop10
+    let scored = if null rankedGenres && null rankedThemes
+                 then map (\g -> (0.0, g)) filtered
+                 else map (\g ->
+                    let s = calculateMatchScore g rankedGenres rankedThemes
+                    in (s, g)) filtered
 
-            -- Sorteia os 17 restantes entre os próximos 190 melhores (total de 200)
-            let rest = take 190 $ drop 10 $ map snd sortedByMatch
-            shuffledRest <- shuffleList rest
-            let finalRest = take 17 shuffledRest
+    -- Ordena por score descendente; como 'sortBy' é estável, mantém a ordem original da API (total_rating desc) em caso de empate
+    let sortedByMatch = sortBy (\(s1, _) (s2, _) -> compare s2 s1) scored
 
-            return $ top3 ++ finalRest
+    let topScores = take 3 sortedByMatch
+    mapM_ (\(s, g) -> putStrLn $ "DEBUG: Match Score [" ++ T.unpack (grName g) ++ "]: " ++ show s) topScores
+
+    -- Separa os top 3 do match de preferências
+    let top10 = take 10 $ map snd sortedByMatch
+    shuffledTop10 <- shuffleList top10
+    let top3 = take 3 shuffledTop10
+
+    -- Pega 5 em trending (populares) de forma aleatória
+    let trendingFiltered = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) trendingResults
+    shuffledTrending <- shuffleList trendingFiltered
+    let top5Trending = take 5 shuffledTrending
+
+    -- Sorteia os 12 restantes (para dar 20 no total) entre os próximos
+    let rest = take 190 $ drop 10 $ map snd sortedByMatch
+    let restSemTrending = filter (\g -> not (g `elem` top5Trending)) rest
+    shuffledRest <- shuffleList restSemTrending
+    let finalRest = take 12 shuffledRest
+
+    return $ top3 ++ top5Trending ++ finalRest
   where
     calculateMatchScore :: GameResult -> [(T.Text, Double)] -> [(T.Text, Double)] -> Double
     calculateMatchScore game genreWeights themeWeights =

@@ -43,6 +43,7 @@ gameSelectionPage originalName _ _ _ _ maybeSource gameResults = html_ $ do
                         form_ [method_ "post", action_ "/confirm"] $ do
                             input_ [type_ "hidden", name_ "name", id_ "modalName"]
                             input_ [type_ "hidden", name_ "cover_url", id_ "modalCoverUrl"]
+                            input_ [type_ "hidden", name_ "original_name", value_ originalName]
                             case maybeSource of
                                 Just src -> input_ [type_ "hidden", name_ "source", value_ src]
                                 Nothing -> return ()
