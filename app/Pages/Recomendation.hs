@@ -8,10 +8,11 @@ import qualified Data.Text as T
 import Models.Games (Game(..))
 import Api.Igdb (GameResult(..))
 import Data.List (sortBy)
+import Control.Monad (when)
 
 -- | Página de Recomendações
-recomendPage :: [GameResult] -> Maybe Int -> Maybe Int -> Html ()
-recomendPage recommendedGames minYear maxYear = html_ [lang_ "pt-br"] $ do
+recomendPage :: [GameResult] -> [GameResult] -> [GameResult] -> Maybe Int -> Maybe Int -> Html ()
+recomendPage trendingGames topRatedGames recommendedGames minYear maxYear = html_ [lang_ "pt-br"] $ do
     head_ $ do
         title_ "Recomendações para Você - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -50,12 +51,25 @@ recomendPage recommendedGames minYear maxYear = html_ [lang_ "pt-br"] $ do
                         div_ [class_ "col-md-auto"] $
                             a_ [href_ "/migrate-metadata", class_ "btn btn-outline-warning", title_ "Busca gêneros e temas para jogos antigos no seu backlog"] "Sincronizar Perfil"
 
-            if null recommendedGames
+            if null trendingGames && null topRatedGames && null recommendedGames
                 then div_ [class_ "alert alert-info text-center mt-5"] $ do
                     h4_ "Ops! Não conseguimos gerar recomendações agora."
                     p_ "Certifique-se de ter jogos avaliados no seu backlog para que possamos entender seu gosto."
-                else div_ [class_ "row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"] $
-                        mapM_ renderRecommendedCard recommendedGames
+                else do
+                    when (not $ null trendingGames) $ do
+                        h3_ [class_ "mt-5 mb-3 fw-bold text-danger"] "🔥 Em Alta (Populares)"
+                        div_ [class_ "row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"] $
+                            mapM_ renderRecommendedCard trendingGames
+
+                    when (not $ null topRatedGames) $ do
+                        h3_ [class_ "mt-5 mb-3 fw-bold text-warning"] "⭐ Aclamados pela Crítica"
+                        div_ [class_ "row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"] $
+                            mapM_ renderRecommendedCard topRatedGames
+
+                    when (not $ null recommendedGames) $ do
+                        h3_ [class_ "mt-5 mb-3 fw-bold text-primary"] "🎯 Recomendações para Você"
+                        div_ [class_ "row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"] $
+                            mapM_ renderRecommendedCard recommendedGames
 
 -- | Renderiza um card simplificado para os jogos recomendados
 renderRecommendedCard :: GameResult -> Html ()
@@ -73,7 +87,7 @@ renderRecommendedCard (GameResult title platforms year coverUrl genres themes) =
                         , style_ "width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0.8;"
                         , title_ "Não recomendar este jogo"
                         ] "✖"
-                        
+
             div_ [class_ "d-flex", style_ "height: 160px;"] $ do
                 div_ [style_ "width: 120px; min-width: 120px;"] $
                     case coverUrl of

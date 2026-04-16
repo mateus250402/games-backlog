@@ -325,9 +325,9 @@ getRecomend = do
             let excludeTitles = map Game.title allGames ++ ignoredTitles
 
             -- 5. Buscar na API do IGDB
-            recommended <- liftIO $ Igdb.searchRecommendations criteria excludeTitles
+            (trending, topRated, recommended) <- liftIO $ Igdb.searchRecommendations criteria excludeTitles
 
-            html $ renderText $ Recomend.recomendPage recommended minYear maxYear
+            html $ renderText $ Recomend.recomendPage trending topRated recommended minYear maxYear
         Nothing -> redirect "/login"
 
 postRecomend :: ActionM ()

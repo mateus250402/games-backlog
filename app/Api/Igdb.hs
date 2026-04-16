@@ -83,7 +83,7 @@ parseGameResult = withObject "Game" $ \obj -> do
 
     return $ GameResult name platformNames year coverUrl genreNames themeNames
 
-searchRecommendations :: RecommendationCriteria -> [T.Text] -> IO [GameResult]
+searchRecommendations :: RecommendationCriteria -> [T.Text] -> IO ([GameResult], [GameResult], [GameResult])
 searchRecommendations criteria excludeTitles = do
     let token = "ow6kyy3nm5a51hud2b940pu4nupcb5"
 
@@ -134,9 +134,14 @@ searchRecommendations criteria excludeTitles = do
              <> "; limit 500; sort total_rating desc;"
 
     let trendingQuery = "fields name, platforms.name, first_release_date, cover.url, genres.name, themes.name; "
-                     <> "where first_release_date > 1640995200" -- After Jan 1, 2022
+                     <> "where first_release_date > 1640995200 & total_rating_count > 10" -- After Jan 1, 2022
                      <> minDateFilter <> maxDateFilter
                      <> "; limit 100; sort total_rating_count desc;"
+
+    let topRatedQuery = "fields name, platforms.name, first_release_date, cover.url, genres.name, themes.name; "
+                     <> "where rating >= 85 & rating_count > 100"
+                     <> minDateFilter <> maxDateFilter
+                     <> "; limit 100; sort rating desc;"
 
     request' <- parseRequest "https://api.igdb.com/v4/games"
     let mkReq q = setRequestMethod "POST"
@@ -148,6 +153,7 @@ searchRecommendations criteria excludeTitles = do
 
     responsePref <- httpLBS (mkReq query)
     responseTrending <- httpLBS (mkReq trendingQuery)
+    responseTopRated <- httpLBS (mkReq topRatedQuery)
 
     let parseBody body = case eitherDecode body :: Either String [Value] of
             Left _ -> []
@@ -155,20 +161,20 @@ searchRecommendations criteria excludeTitles = do
 
     let prefResults = parseBody (getResponseBody responsePref)
     let trendingResults = parseBody (getResponseBody responseTrending)
+    let topRatedResults = parseBody (getResponseBody responseTopRated)
 
-    let combinedResults = prefResults ++ trendingResults
-    let uniqueResults = foldr (\g acc -> if any (\x -> grName x == grName g) acc then acc else g:acc) [] combinedResults
-
-    let filtered = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) uniqueResults
+    let filteredPref = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) prefResults
+    let filteredTrending = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) trendingResults
+    let filteredTopRated = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) topRatedResults
 
     putStrLn $ "DEBUG: Preferências do usuário - Gêneros: " ++ show (map fst rankedGenres)
     putStrLn $ "DEBUG: Preferências do usuário - Temas: " ++ show (map fst rankedThemes)
 
     let scored = if null rankedGenres && null rankedThemes
-                 then map (\g -> (0.0, g)) filtered
+                 then map (\g -> (0.0, g)) filteredPref
                  else map (\g ->
                     let s = calculateMatchScore g rankedGenres rankedThemes
-                    in (s, g)) filtered
+                    in (s, g)) filteredPref
 
     -- Ordena por score descendente; como 'sortBy' é estável, mantém a ordem original da API (total_rating desc) em caso de empate
     let sortedByMatch = sortBy (\(s1, _) (s2, _) -> compare s2 s1) scored
@@ -176,23 +182,20 @@ searchRecommendations criteria excludeTitles = do
     let topScores = take 3 sortedByMatch
     mapM_ (\(s, g) -> putStrLn $ "DEBUG: Match Score [" ++ T.unpack (grName g) ++ "]: " ++ show s) topScores
 
-    -- Separa os top 3 do match de preferências
-    let top10 = take 10 $ map snd sortedByMatch
-    shuffledTop10 <- shuffleList top10
-    let top3 = take 3 shuffledTop10
+    -- Recomendados baseados no gosto
+    let top20Match = take 30 $ map snd sortedByMatch
+    shuffledMatch <- shuffleList top20Match
+    let recommendedFinal = take 21 shuffledMatch
 
-    -- Pega 5 em trending (populares) de forma aleatória
-    let trendingFiltered = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) trendingResults
-    shuffledTrending <- shuffleList trendingFiltered
-    let top5Trending = take 5 shuffledTrending
+    -- Trending (Populares recentes)
+    shuffledTrending <- shuffleList filteredTrending
+    let trendingFinal = take 9 shuffledTrending
 
-    -- Sorteia os 12 restantes (para dar 20 no total) entre os próximos
-    let rest = take 190 $ drop 10 $ map snd sortedByMatch
-    let restSemTrending = filter (\g -> not (g `elem` top5Trending)) rest
-    shuffledRest <- shuffleList restSemTrending
-    let finalRest = take 12 shuffledRest
+    -- Aclamados (Top Rated)
+    shuffledTopRated <- shuffleList filteredTopRated
+    let topRatedFinal = take 9 shuffledTopRated
 
-    return $ top3 ++ top5Trending ++ finalRest
+    return (trendingFinal, topRatedFinal, recommendedFinal)
   where
     calculateMatchScore :: GameResult -> [(T.Text, Double)] -> [(T.Text, Double)] -> Double
     calculateMatchScore game genreWeights themeWeights =
