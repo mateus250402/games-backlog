@@ -218,6 +218,7 @@ getBacklog = do
     maybeSort <- queryParamMaybe "sort" :: ActionM (Maybe TL.Text)
     maybeSearch <- queryParamMaybe "search" :: ActionM (Maybe TL.Text)
     maybeWantToPlayParam <- queryParamMaybe "want_to_play" :: ActionM (Maybe TL.Text)
+    maybePlayedParam <- queryParamMaybe "played" :: ActionM (Maybe TL.Text)
     maybePlatinumedParam <- queryParamMaybe "platinumed" :: ActionM (Maybe TL.Text)
 
     let platformFilter = case maybePlatform of
@@ -234,6 +235,7 @@ getBacklog = do
             _ -> "recent"
 
     let wantToPlayFilter = if maybeWantToPlayParam == Just "on" then Just True else Nothing
+    let playedFilter = if maybePlayedParam == Just "on" then Just True else Nothing
     let platinumedFilter = if maybePlatinumedParam == Just "on" then Just True else Nothing
 
     case mUserId of
@@ -241,14 +243,14 @@ getBacklog = do
             let userId = read userIdStr :: Int
             allGames <- liftIO $ DB.getGames userId
 
-            let filteredGames = Dt.filterGames allGames platformFilter searchFilter wantToPlayFilter platinumedFilter
+            let filteredGames = Dt.filterGames allGames platformFilter searchFilter wantToPlayFilter playedFilter platinumedFilter
 
             let sortedGames = case sortFilter of
                                 "score" -> sortBy (\a b -> compare (Game.score b) (Game.score a)) filteredGames
                                 "recent" -> sortBy (\a b -> compare (Game.gameId b) (Game.gameId a)) filteredGames
                                 _ -> sortBy (\a b -> compare (T.toLower $ Game.title a) (T.toLower $ Game.title b)) filteredGames
 
-            html $ renderText $ Backlog.backlogPage searchFilter platformFilter sortFilter (wantToPlayFilter == Just True) (platinumedFilter == Just True) sortedGames
+            html $ renderText $ Backlog.backlogPage searchFilter platformFilter sortFilter (wantToPlayFilter == Just True) (playedFilter == Just True) (platinumedFilter == Just True) sortedGames
         Nothing -> redirect "/login"
 
 getConfirm :: ActionM ()

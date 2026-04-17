@@ -60,7 +60,7 @@ gameCard (Game gId gTitle gScore gPlatform gCoverUrl gPlayed gPlatinumed gGenres
                 then div_ [class_ "platinum-tag"] "🏆"
                 else ""
             case gCoverUrl of
-                Just url -> img_ [src_ url, class_ "game-cover", alt_ "Capa do jogo", style_ (if not gPlayed then "filter: sepia(0.2);" else "")]
+                Just url -> img_ [src_ url, class_ "game-cover", alt_ "Capa do jogo", style_ (if not gPlayed then "filter: grayscale(1) contrast(0.8);" else "")]
                 Nothing  -> div_ [class_ "bg-secondary text-white text-center rounded-top w-100", style_ "height:180px; display:flex; align-items:center; justify-content:center;"] "Sem capa disponível"
         div_ [class_ "game-col"] $ do
             div_ [class_ "game-title"] $ toHtml gTitle
@@ -73,7 +73,7 @@ gameCardStyles :: Text
 gameCardStyles = T.concat
     [ ".game-card { border-radius: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.07); border: 1px solid #e0e0e0; color: #222; overflow: hidden; position: relative; padding: 0; background: #fff; transition: box-shadow 0.2s; height: 100%; display: flex; flex-direction: column; }"
     , ".game-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.12); }"
-    , ".game-cover { border-radius: 1rem 1rem 0 0; background: #222; height: 200px; width: 100%; object-fit: cover; display: block; }"
+    , ".game-cover { border-radius: 1rem 1rem 0 0; background: #222; height: 200px; width: 100%; object-fit: cover; display: block; transition: filter 0.3s ease; }"
     , ".game-title { font-size: 1rem; line-height: 1.2; font-weight: bold; margin-bottom: 0.2rem; }"
     , ".game-info { font-size: 0.8rem; line-height: 1.1; }"
     , ".game-col { padding: 0.75rem !important; display: flex; flex-direction: column; justify-content: flex-start; flex-grow: 1; }"
