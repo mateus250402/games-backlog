@@ -11,7 +11,16 @@ editModal = do
     div_ [id_ "game-details-modal", class_ "modal", tabindex_ "-1"] $
         div_ [class_ "modal-dialog"] $
             div_ [class_ "modal-content"] $ do
-                form_ [id_ "edit-form", method_ "post", action_ ""] $ do
+                form_ [ id_ "edit-form"
+                      , method_ "post"
+                      , action_ ""
+                      , data_ "hx-post" ""
+                      , data_ "hx-target" "#game-list"
+                      , data_ "hx-select" "#game-list"
+                      , data_ "hx-swap" "innerHTML transition:true"
+                      , data_ "hx-include" "#filter-form"
+                      , data_ "hx-on::after-request" "if(event.detail.successful) { bootstrap.Modal.getInstance(document.getElementById('game-details-modal')).hide(); }"
+                      ] $ do
                     div_ [class_ "modal-header"] $ do
                         h5_ [class_ "modal-title"] "Editar Jogo"
                         button_ [type_ "button", class_ "btn-close", data_ "bs-dismiss" "modal", data_ "aria-label" "Close"] ""
@@ -60,7 +69,10 @@ editModalScripts = script_ $ T.unlines
     [ "let currentGameId = null;"
     , "function showGameDetails(id, title, score, platform, coverUrl, played, platinumed, genres, themes) {"
     , "  currentGameId = id;"
-    , "  document.getElementById('edit-form').action = '/edit/' + id;"
+    , "  const form = document.getElementById('edit-form');"
+    , "  form.action = '/edit/' + id;"
+    , "  form.setAttribute('data-hx-post', '/edit/' + id);"
+    , "  htmx.process(form);"
     , "  document.getElementById('modal-title-input').value = title;"
     , "  document.getElementById('modal-score-input').value = score;"
     , "  document.getElementById('modal-platform-input').value = platform;"
@@ -121,11 +133,16 @@ editModalScripts = script_ $ T.unlines
     , "}"
     , "function handleDelete() {"
     , "  if (confirm('Tem certeza que deseja excluir este jogo?')) {"
-    , "    const form = document.createElement('form');"
-    , "    form.method = 'POST';"
-    , "    form.action = '/delete/' + currentGameId;"
-    , "    document.body.appendChild(form);"
-    , "    form.submit();"
+    , "    const modalElement = document.getElementById('game-details-modal');"
+    , "    const modal = bootstrap.Modal.getInstance(modalElement);"
+    , "    htmx.ajax('POST', '/delete/' + currentGameId, {"
+    , "      target: '#game-list',"
+    , "      select: '#game-list',"
+    , "      swap: 'innerHTML transition:true',"
+    , "      values: Object.fromEntries(new FormData(document.getElementById('filter-form')))"
+    , "    }).then(() => {"
+    , "      if (modal) modal.hide();"
+    , "    });"
     , "  }"
     , "}"
     ]

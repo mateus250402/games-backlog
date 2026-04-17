@@ -28,6 +28,7 @@ import qualified Utils.Data as Dt
 import qualified Models.Games as Game
 import qualified Pages.Selection as Selection
 import qualified Pages.Recomendation as Recomend
+import qualified Pages.Tournament as Tournament
 
 postLogin :: ActionM ()
 postLogin = do
@@ -128,10 +129,14 @@ postEdit = do
             result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
             case result of
                 Right _ -> do
-                    referer <- header "Referer"
-                    case referer of
-                        Just ref -> redirect ref
-                        Nothing -> redirect "/backlog"
+                    isHtmx <- header "HX-Request"
+                    case isHtmx of
+                        Just "true" -> getBacklogWithFilters formData
+                        _ -> do
+                            referer <- header "Referer"
+                            case referer of
+                                Just ref -> redirect ref
+                                Nothing -> redirect "/backlog"
                 Left msg -> html $ TL.pack $ "Erro ao atualizar: " ++ msg
         _ -> html "Dados inválidos para edição"
 
@@ -177,11 +182,17 @@ postConfirm = do
 postDelete :: ActionM ()
 postDelete = do
     gameId <- pathParam "id"
+    requestBody <- body
+    let formData = Format.parseFormData requestBody
     liftIO $ DB.deleteGame gameId
-    referer <- header "Referer"
-    case referer of
-        Just ref -> redirect ref
-        Nothing -> redirect "/backlog"
+    isHtmx <- header "HX-Request"
+    case isHtmx of
+        Just "true" -> getBacklogWithFilters formData
+        _ -> do
+            referer <- header "Referer"
+            case referer of
+                Just ref -> redirect ref
+                Nothing -> redirect "/backlog"
 
 getLogout :: ActionM ()
 getLogout = do
@@ -211,9 +222,6 @@ getAdd = do
 
 getBacklog :: ActionM ()
 getBacklog = do
-    mUserId <- Session.sessionLookup "user_id"
-
-    -- Usar rescue para tratar parâmetros opcionais com anotações de tipo
     maybePlatform <- queryParamMaybe "platform" :: ActionM (Maybe TL.Text)
     maybeSort <- queryParamMaybe "sort" :: ActionM (Maybe TL.Text)
     maybeSearch <- queryParamMaybe "search" :: ActionM (Maybe TL.Text)
@@ -221,22 +229,29 @@ getBacklog = do
     maybePlayedParam <- queryParamMaybe "played" :: ActionM (Maybe TL.Text)
     maybePlatinumedParam <- queryParamMaybe "platinumed" :: ActionM (Maybe TL.Text)
 
-    let platformFilter = case maybePlatform of
-            Nothing -> ""
-            Just p -> TL.toStrict p
+    let params = [ ("platform", maybe "" TL.toStrict maybePlatform)
+                 , ("sort", maybe "" TL.toStrict maybeSort)
+                 , ("search", maybe "" TL.toStrict maybeSearch)
+                 , ("want_to_play", maybe "" TL.toStrict maybeWantToPlayParam)
+                 , ("played", maybe "" TL.toStrict maybePlayedParam)
+                 , ("platinumed", maybe "" TL.toStrict maybePlatinumedParam)
+                 ]
+    getBacklogWithFilters (map (\(k, v) -> (T.unpack k, T.unpack v)) params)
 
-    let searchFilter = case maybeSearch of
-            Nothing -> ""
-            Just s -> TL.toStrict s
+getBacklogWithFilters :: [(String, String)] -> ActionM ()
+getBacklogWithFilters filters = do
+    mUserId <- Session.sessionLookup "user_id"
 
-    let sortFilter = case maybeSort of
+    let platformFilter = T.pack $ maybe "" id (lookup "platform" filters)
+    let searchFilter = T.pack $ maybe "" id (lookup "search" filters)
+    let sortFilter = case lookup "sort" filters of
             Just "score" -> "score"
             Just "alpha" -> "alpha"
             _ -> "recent"
 
-    let wantToPlayFilter = if maybeWantToPlayParam == Just "on" then Just True else Nothing
-    let playedFilter = if maybePlayedParam == Just "on" then Just True else Nothing
-    let platinumedFilter = if maybePlatinumedParam == Just "on" then Just True else Nothing
+    let wantToPlayFilter = if lookup "want_to_play" filters == Just "on" then Just True else Nothing
+    let playedFilter = if lookup "played" filters == Just "on" then Just True else Nothing
+    let platinumedFilter = if lookup "platinumed" filters == Just "on" then Just True else Nothing
 
     case mUserId of
         Just userIdStr -> do
@@ -388,3 +403,69 @@ postIgnoreRecomend = do
                 Just ref -> redirect ref
                 Nothing -> redirect "/recomend"
         _ -> redirect "/recomend"
+
+getTournament :: ActionM ()
+getTournament = do
+    mUserId <- Session.sessionLookup "user_id"
+    case mUserId of
+        Just userIdStr -> do
+            let userId = read userIdStr :: Int
+            allGames <- liftIO $ DB.getGames userId
+            let backlogGames = filter (not . Game.played) allGames
+            shuffledGames <- liftIO $ Igdb.shuffleList backlogGames
+            html $ renderText $ Tournament.tournamentPage shuffledGames
+        Nothing -> redirect "/login"
+
+postTournamentStart :: ActionM ()
+postTournamentStart = do
+    requestBody <- body
+    let formData = Format.parseFormData requestBody
+    let gameIds = map (read . snd) $ filter (\(k, _) -> k == "game_ids") formData :: [Int]
+
+    mUserId <- Session.sessionLookup "user_id"
+    case mUserId of
+        Just userIdStr -> do
+            let userId = read userIdStr :: Int
+            allGames <- liftIO $ DB.getGames userId
+            let selectedGamesRaw = filter (\g -> Game.gameId g `elem` gameIds) allGames
+            selectedGames <- liftIO $ Igdb.shuffleList selectedGamesRaw
+
+            if length selectedGames < 2
+                then html "Selecione pelo menos 2 jogos."
+                else do
+                    let (g1:g2:rest) = selectedGames
+                    let restIds = map Game.gameId rest
+                    let total = length selectedGames
+                    html $ renderText $ Tournament.battleView g1 g2 restIds total
+        Nothing -> html "Não autenticado"
+
+postTournamentVote :: ActionM ()
+postTournamentVote = do
+    requestBody <- body
+    let formData = Format.parseFormData requestBody
+    let winnerId = read $ maybe "0" id (lookup "winner_id" formData) :: Int
+    -- O HTMX não envia o estado anterior facilmente a menos que incluamos,
+    -- mas podemos usar hx-vals para passar o que sobrou.
+    -- Para simplificar esta versão, vamos buscar os IDs restantes de um campo que adicionaremos.
+
+    -- Nota: Para manter o estado entre cliques HTMX sem sessão complexa,
+    -- vamos extrair os IDs que ainda não lutaram do formulário.
+    let remainingIdsStr = maybe "" T.pack (lookup "remaining_ids" formData)
+    let total = read $ maybe "2" id (lookup "total_count" formData) :: Int
+
+    mUserId <- Session.sessionLookup "user_id"
+    case mUserId of
+        Just userIdStr -> do
+            let userId = read userIdStr :: Int
+            allGames <- liftIO $ DB.getGames userId
+
+            let winner = head $ filter (\g -> Game.gameId g == winnerId) allGames
+            let remainingIds = if T.null remainingIdsStr then [] else map (read . T.unpack) (T.splitOn "," remainingIdsStr) :: [Int]
+            let remainingGames = filter (\g -> Game.gameId g `elem` remainingIds) allGames
+
+            case remainingGames of
+                [] -> html $ renderText $ Tournament.winnerView winner
+                (next:rest) -> do
+                    let restIds = map Game.gameId rest
+                    html $ renderText $ Tournament.battleView winner next restIds total
+        Nothing -> html "Não autenticado"

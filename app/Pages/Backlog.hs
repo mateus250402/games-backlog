@@ -29,11 +29,13 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter
                 a_ [class_ "navbar-brand", href_ "/"] "🎮 Games Backlog"
                 div_ [class_ "navbar-nav ms-auto"] $ do
                     a_ [class_ "nav-link", href_ "/recomend"] "Recomendações"
+                    a_ [class_ "nav-link", href_ "/tournament"] "O que Jogar?"
         div_ [class_ "container-mobile mt-5"] $ do
             h1_ [class_ "mb-4 text-center text-dark fw-bold"] "Meu Backlog"
 
-            div_ [class_ "mb-4 text-center"] $ do
-                a_ [href_ "/add", class_ "btn btn-success me-2"] "Adicionar Jogo"
+            div_ [class_ "mb-4 text-center d-flex justify-content-center gap-2 flex-wrap"] $ do
+                a_ [href_ "/add", class_ "btn btn-success"] "Adicionar Jogo"
+                a_ [href_ "/tournament", class_ "btn btn-warning fw-bold"] "🏆 O que Jogar?"
                 a_ [href_ "/", class_ "btn btn-outline-primary"] "Home"
 
             form_ [ id_ "filter-form"
@@ -92,6 +94,7 @@ customStyle = T.concat
     , "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }"
     , gameCardStyles
     , ".delete-form { position: absolute; top: 8px; right: 8px; z-index: 10; margin: 0; }"
+    , ".htmx-request.game-card { opacity: 0.5; }"
     , ".delete-btn { width: 28px; height: 28px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; line-height: 1; opacity: 0.6; transition: opacity 0.2s, transform 0.2s; background: transparent; border: none; color: #666; }"
     , ".delete-btn:hover { opacity: 1; transform: scale(1.1); color: #dc3545; }"
     , ".game-card:hover .delete-btn { opacity: 0.8; }"

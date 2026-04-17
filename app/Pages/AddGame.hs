@@ -39,7 +39,7 @@ addGamePage maybeName maybeSource = html_ $ do
                                   , data_ "hx-get" "/game-selection"
                                   , data_ "hx-target" "#search-results"
                                   , data_ "hx-select" "#search-results"
-                                  , data_ "hx-trigger" "input from:#search-name delay:300ms, keyup[key=='Enter'] from:#search-name"
+                                  , data_ "hx-trigger" "load, input from:#search-name delay:300ms, keyup[key=='Enter'] from:#search-name"
                                   , data_ "hx-push-url" "true"
                                   , data_ "hx-indicator" "#search-loading"
                                   , data_ "hx-swap" "innerHTML transition:true"

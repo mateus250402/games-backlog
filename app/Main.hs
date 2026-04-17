@@ -39,6 +39,10 @@ main = do
 
         post "/delete/:id" $ Session.requireAuth $ do Hd.postDelete
 
+        get "/tournament" $ Session.requireAuth $ do Hd.getTournament
+        post "/tournament/start" $ Session.requireAuth $ do Hd.postTournamentStart
+        post "/tournament/vote" $ Session.requireAuth $ do Hd.postTournamentVote
+
         get "/recomend" $ Session.requireAuth $ do Hd.getRecomend
         post "/recomend" $ Session.requireAuth $ do Hd.postRecomend
         post "/ignore-recomend" $ Session.requireAuth $ do Hd.postIgnoreRecomend

@@ -1,7 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Api.Igdb where
+module Api.Igdb (
+    GameResult(..),
+    RecommendationCriteria(..),
+    searchMultipleGames,
+    searchRecommendations,
+    shuffleList
+) where
 
 import Network.HTTP.Simple
 import Data.Aeson
@@ -78,7 +84,7 @@ parseGameResult = withObject "Game" $ \obj -> do
         Nothing -> return Nothing
         Just coverObj -> do
             url <- withObject "Cover" (.: "url") coverObj
-            let bigUrl = T.replace "t_thumb" "t_cover_big" url
+            let bigUrl = T.replace "t_thumb" "t_720p" url
             return $ Just $ "https:" <> bigUrl
 
     return $ GameResult name platformNames year coverUrl genreNames themeNames
@@ -250,7 +256,8 @@ searchRecommendations criteria excludeTitles = do
                ) ownedTitles
         in not isSecondaryContent && not alreadyOwned
 
-    shuffleList [] = return []
-    shuffleList xs = do
+shuffleList :: [a] -> IO [a]
+shuffleList [] = return []
+shuffleList xs = do
         randomized <- mapM (\x -> do { r <- randomRIO (0, 100000 :: Int); return (r, x) }) xs
         return $ map snd $ sortOn fst randomized
