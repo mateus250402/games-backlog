@@ -2,10 +2,11 @@
 
 module Pages.Index where
 
+import Data.Text (Text)
 import Lucid
 
-indexPage :: Html ()
-indexPage = html_ [lang_ "pt-br"] $ do
+indexPage :: Maybe Text -> Html ()
+indexPage maybeError = html_ [lang_ "pt-br"] $ do
     head_ $ do
         title_ "Games Backlog - Home"
         meta_ [charset_ "utf-8"]
@@ -25,6 +26,18 @@ indexPage = html_ [lang_ "pt-br"] $ do
 
         -- Hero Section
         div_ [class_ "container mt-5"] $ do
+            case maybeError of
+                Just errorMessage ->
+                    div_ [class_ "row justify-content-center mb-4"] $
+                        div_ [class_ "col-md-10 col-lg-8"] $
+                            div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-4"] $ do
+                                h4_ [class_ "alert-heading fw-bold mb-3"] "Ops! Tivemos um problema por aqui."
+                                p_ [class_ "mb-2"] "A tela nao carregou como esperado, mas voce pode tentar novamente sem sair do app."
+                                p_ [class_ "mb-3 text-secondary"] (toHtml errorMessage)
+                                div_ [class_ "d-flex flex-wrap gap-2"] $ do
+                                    a_ [class_ "btn btn-warning fw-semibold", href_ "/"] "Tentar de novo"
+                                    a_ [class_ "btn btn-outline-dark", href_ "/backlog"] "Ir para o backlog"
+                Nothing -> mempty
 
             div_ [class_ "row justify-content-center"] $ do
                 div_ [class_ "col-md-8 text-center"] $ do

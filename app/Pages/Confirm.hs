@@ -7,9 +7,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Models.Games (Game(..))
 import Components.GameCard (gameCard, gameCardStyles, gameCardMobileStyles)
+import Text.Read (readMaybe)
 
-confirmPage :: Text -> Text -> Text -> Maybe Text -> Bool -> Bool -> Maybe Text -> Html ()
-confirmPage name score platform maybeCover played platinumed maybeSource = html_ $ do
+confirmPage :: Text -> Text -> Text -> Maybe Text -> Bool -> Bool -> Maybe Text -> Maybe Text -> Html ()
+confirmPage name score platform maybeCover played platinumed maybeSource maybeError = html_ $ do
     head_ $ do
         title_ "Confirmar Jogo - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -17,6 +18,10 @@ confirmPage name score platform maybeCover played platinumed maybeSource = html_
         link_ [rel_ "stylesheet", href_ "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"]
         style_ customStyle
     body_ [] $ do
+        let parsedScore = case readMaybe (T.unpack score) of
+                Just value -> value
+                Nothing -> 0 :: Double
+
         nav_ [class_ "navbar navbar-expand-lg navbar-dark bg-primary"] $
             div_ [class_ "container"] $
                 a_ [class_ "navbar-brand", href_ "/"] "🎮 Games Backlog"
@@ -24,11 +29,21 @@ confirmPage name score platform maybeCover played platinumed maybeSource = html_
         div_ [class_ "container mt-5"] $ do
             h1_ [class_ "mb-4 text-center text-dark"] "Confirmar Jogo"
 
+            case maybeError of
+                Just errorMessage ->
+                    div_ [class_ "row justify-content-center mb-4"] $
+                        div_ [class_ "col-12 col-sm-10 col-md-8 col-lg-6"] $
+                            div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-3", role_ "alert"] $ do
+                                h5_ [class_ "alert-heading mb-2"] "Nao foi possivel salvar o jogo"
+                                p_ [class_ "mb-2"] "Confira os dados antes de confirmar e tente novamente."
+                                p_ [class_ "mb-0 small"] (toHtml errorMessage)
+                Nothing -> mempty
+
             div_ [class_ "row justify-content-center"] $
                 div_ [class_ "col-12 col-sm-10 col-md-8 col-lg-6"] $
                     -- Criamos um objeto Game temporário (id 0) para exibição no card
                     -- O segundo parâmetro 'False' indica que o card não deve ser clicável nesta página
-                    gameCard (Game 0 name (if score == "" then 0 else read (T.unpack score)) platform maybeCover played platinumed Nothing Nothing) False
+                    gameCard (Game 0 name (if score == "" then 0 else parsedScore) platform maybeCover played platinumed Nothing Nothing) False
 
             div_ [class_ "row justify-content-center mt-4"] $
                 div_ [class_ "col-lg-8 text-center"] $ do

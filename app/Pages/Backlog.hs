@@ -9,8 +9,8 @@ import qualified Data.Text as T
 import Components.EditModal (editModal, editModalScripts)
 import Components.GameCard (gameCard, gameCardStyles, gameCardMobileStyles)
 
-backlogPage :: Text -> Text -> Text -> Bool -> Bool -> Bool -> [Game] -> Html ()
-backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter platinumedFilter games = html_ $ do
+backlogPage :: Text -> Text -> Text -> Bool -> Bool -> Bool -> Maybe Text -> [Game] -> Html ()
+backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter platinumedFilter maybeEditError games = html_ $ do
     head_ $ do
         title_ "Meu Backlog - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -19,7 +19,7 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter
         script_ [src_ "https://unpkg.com/htmx.org@1.9.10"] ("" :: Text)
         style_ customStyle
     body_ [] $ do
-        editModal
+        editModal maybeEditError
 
         script_ [src_ "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"] ("" :: Text)
         editModalScripts
@@ -32,6 +32,14 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter
                     a_ [class_ "nav-link", href_ "/tournament"] "O que Jogar?"
         div_ [class_ "container-mobile mt-5"] $ do
             h1_ [class_ "mb-4 text-center text-dark fw-bold"] "Meu Backlog"
+
+            case maybeEditError of
+                Just errorMessage ->
+                    div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-3", role_ "alert"] $ do
+                        h5_ [class_ "alert-heading mb-2"] "Nao foi possivel atualizar o jogo"
+                        p_ [class_ "mb-2"] "Nada foi perdido. Ajuste os dados e tente novamente."
+                        p_ [class_ "mb-0 small"] (toHtml errorMessage)
+                Nothing -> mempty
 
             div_ [class_ "mb-4 text-center d-flex justify-content-center gap-2 flex-wrap"] $ do
                 a_ [href_ "/add", class_ "btn btn-success"] "Adicionar Jogo"

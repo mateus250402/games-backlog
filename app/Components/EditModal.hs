@@ -6,8 +6,8 @@ import Lucid
 import Data.Text (Text)
 import qualified Data.Text as T
 
-editModal :: Html ()
-editModal = do
+editModal :: Maybe Text -> Html ()
+editModal maybeError = do
     div_ [id_ "game-details-modal", class_ "modal", tabindex_ "-1"] $
         div_ [class_ "modal-dialog"] $
             div_ [class_ "modal-content"] $ do
@@ -19,12 +19,22 @@ editModal = do
                       , data_ "hx-select" "#game-list"
                       , data_ "hx-swap" "innerHTML transition:true"
                       , data_ "hx-include" "#filter-form"
-                      , data_ "hx-on::after-request" "if(event.detail.successful) { bootstrap.Modal.getInstance(document.getElementById('game-details-modal')).hide(); }"
                       ] $ do
                     div_ [class_ "modal-header"] $ do
                         h5_ [class_ "modal-title"] "Editar Jogo"
                         button_ [type_ "button", class_ "btn-close", data_ "bs-dismiss" "modal", data_ "aria-label" "Close"] ""
                     div_ [class_ "modal-body text-start"] $ do
+                        div_ ([id_ "edit-form-feedback", class_ "mb-3"] ++ case maybeError of
+                            Just _ -> [data_ "hx-swap-oob" "innerHTML"]
+                            Nothing -> []) $
+                            case maybeError of
+                                Just errorMessage ->
+                                    div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-3", role_ "alert"] $ do
+                                        h6_ [class_ "alert-heading mb-2"] "Nao foi possivel salvar as alteracoes"
+                                        p_ [class_ "mb-2"] "Ajuste os dados do jogo e tente novamente."
+                                        p_ [class_ "mb-0 small"] (toHtml errorMessage)
+                                Nothing -> mempty
+
                         div_ [class_ "text-center mb-3"] $
                             img_ [id_ "modal-cover", src_ "", class_ "img-fluid rounded mx-auto d-block", style_ "max-height: 200px;", alt_ "Capa do Jogo"]
 
@@ -70,9 +80,11 @@ editModalScripts = script_ $ T.unlines
     , "function showGameDetails(id, title, score, platform, coverUrl, played, platinumed, genres, themes) {"
     , "  currentGameId = id;"
     , "  const form = document.getElementById('edit-form');"
+    , "  const feedback = document.getElementById('edit-form-feedback');"
     , "  form.action = '/edit/' + id;"
     , "  form.setAttribute('data-hx-post', '/edit/' + id);"
     , "  htmx.process(form);"
+    , "  if (feedback) feedback.innerHTML = '';"
     , "  document.getElementById('modal-title-input').value = title;"
     , "  document.getElementById('modal-score-input').value = score;"
     , "  document.getElementById('modal-platform-input').value = platform;"
@@ -145,4 +157,11 @@ editModalScripts = script_ $ T.unlines
     , "    });"
     , "  }"
     , "}"
+    , "document.body.addEventListener('edit-saved', () => {"
+    , "  const modalElement = document.getElementById('game-details-modal');"
+    , "  const modal = bootstrap.Modal.getInstance(modalElement);"
+    , "  const feedback = document.getElementById('edit-form-feedback');"
+    , "  if (feedback) feedback.innerHTML = '';"
+    , "  if (modal) modal.hide();"
+    , "});"
     ]

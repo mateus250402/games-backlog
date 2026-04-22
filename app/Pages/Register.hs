@@ -2,10 +2,11 @@
 
 module Pages.Register where
 
+import Data.Text (Text)
 import Lucid
 
-registerPage :: Html ()
-registerPage = html_ [lang_ "pt-br"] $ do
+registerPage :: Maybe Text -> Html ()
+registerPage maybeError = html_ [lang_ "pt-br"] $ do
     
     head_ $ do
         title_ "Registro - Games Backlog"
@@ -29,19 +30,27 @@ registerPage = html_ [lang_ "pt-br"] $ do
                             h4_ [class_ "mb-0"] "📝 Criar Conta"
                         
                         div_ [class_ "card-body p-4"] $ do
-                            form_ [method_ "post", action_ "/register"] $ do  -- ✅ VERIFICAR ESTA LINHA
+                            case maybeError of
+                                Just errorMessage ->
+                                    div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-3", role_ "alert"] $ do
+                                        h5_ [class_ "alert-heading mb-2"] "Nao foi possivel concluir seu cadastro"
+                                        p_ [class_ "mb-2"] "Revise os dados informados e tente novamente."
+                                        p_ [class_ "mb-0 small"] (toHtml errorMessage)
+                                Nothing -> mempty
+
+                            form_ [method_ "post", action_ "/register"] $ do
                                 div_ [class_ "mb-3"] $ do
                                     label_ [for_ "email", class_ "form-label"] "E-mail"
                                     input_ [type_ "email", class_ "form-control", id_ "email", 
-                                           name_ "email", required_ "", placeholder_ "Digite seu e-mail"]  -- ✅ VERIFICAR name="email"
+                                           name_ "email", required_ "", placeholder_ "Digite seu e-mail"]
                                 
                                 div_ [class_ "mb-3"] $ do
                                     label_ [for_ "password", class_ "form-label"] "Senha"
                                     input_ [type_ "password", class_ "form-control", id_ "password", 
-                                           name_ "password", required_ "", placeholder_ "Crie uma senha segura"]  -- ✅ VERIFICAR name="password"
+                                           name_ "password", required_ "", placeholder_ "Crie uma senha segura"]
                                 
                                 div_ [class_ "d-grid"] $ do
-                                    button_ [type_ "submit", class_ "btn btn-success"] "Registrar"  -- ✅ VERIFICAR type="submit"
+                                    button_ [type_ "submit", class_ "btn btn-success"] "Registrar"
                         
                         div_ [class_ "card-footer text-center bg-primary"] $ do
                             span_ [class_ "text-light"] "Já tem conta? "

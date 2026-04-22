@@ -2,10 +2,11 @@
 
 module Pages.Login where
 
+import Data.Text (Text)
 import Lucid
 
-loginPage :: Html ()
-loginPage = html_ [lang_ "pt-br"] $ do
+loginPage :: Maybe Text -> Html ()
+loginPage maybeError = html_ [lang_ "pt-br"] $ do
     head_ $ do
         title_ "Login - Games Backlog"
         meta_ [charset_ "utf-8"]
@@ -28,6 +29,14 @@ loginPage = html_ [lang_ "pt-br"] $ do
                             h4_ [class_ "mb-0"] "🔐 Fazer Login"
                         
                         div_ [class_ "card-body p-4"] $ do
+                            case maybeError of
+                                Just errorMessage ->
+                                    div_ [class_ "alert alert-warning shadow-sm border-0 rounded-4 px-4 py-3", role_ "alert"] $ do
+                                        h5_ [class_ "alert-heading mb-2"] "Nao foi possivel entrar"
+                                        p_ [class_ "mb-2"] "Confira se o e-mail e a senha estao corretos e tente novamente."
+                                        p_ [class_ "mb-0 small"] (toHtml errorMessage)
+                                Nothing -> mempty
+
                             form_ [method_ "post", action_ "/login"] $ do
                                 div_ [class_ "mb-3"] $ do
                                     label_ [for_ "email", class_ "form-label"] "E-mail"

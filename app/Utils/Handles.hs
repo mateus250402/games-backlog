@@ -4,13 +4,13 @@
 
 module Utils.Handles where
 
-import Web.Scotty (ActionM, body, html, redirect, pathParam, queryParam, queryParamMaybe, header)
+import Web.Scotty (ActionM, body, html, redirect, pathParam, queryParam, queryParamMaybe, header, status, setHeader)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Control.Monad.IO.Class (liftIO)
 import Data.List (sortBy)
 import Lucid (renderText)
-import Control.Exception (SomeException)
+import Network.HTTP.Types.Status (badRequest400, unauthorized401, conflict409, internalServerError500)
 import Text.Read (readMaybe)
 
 -- Módulos internos
@@ -43,8 +43,11 @@ postLogin = do
                     Session.sessionInsert "user_id" (show userId)
                     redirect "/"
                 Left msg -> do
-                    html $ TL.pack $ "Erro: " ++ msg
-        _ -> html "Email ou senha incorretos" -- Captura qualquer outro caso
+                    status unauthorized401
+                    html $ renderText $ Login.loginPage (Just $ T.pack msg)
+        _ -> do
+            status badRequest400
+            html $ renderText $ Login.loginPage (Just "Preencha e-mail e senha para fazer login.")
 
 postRegister :: ActionM ()
 postRegister = do
@@ -56,8 +59,12 @@ postRegister = do
             result <- liftIO $ DB.insertUser (T.pack email) (T.pack password)
             case result of
                 Right _ -> redirect "/login"
-                Left msg -> html $ TL.pack $ "Erro: " ++ msg
-        _ -> html "Erro: email ou senha não encontrados" -- Captura qualquer outro caso
+                Left msg -> do
+                    status conflict409
+                    html $ renderText $ Register.registerPage (Just $ registerErrorMessage msg)
+        _ -> do
+            status badRequest400
+            html $ renderText $ Register.registerPage (Just "Preencha e-mail e senha para criar sua conta.")
 
 postAdd :: ActionM ()
 postAdd = do
@@ -110,74 +117,94 @@ postEdit = do
         (Just name, Just platform) -> do
             let played = lookup "played" formData == Just "on"
             let score = lookup "score" formData
-            let scoreDouble = if not played || score == Just "" || score == Just "0" then 0.0 else (read (maybe "0" id score) :: Double)
             let platinumed = played && lookup "platinumed" formData == Just "on"
             let maybeCoverUrl = case lookup "cover_url" formData of
                     Just "" -> Nothing
                     Just url -> Just (T.pack url)
                     Nothing -> Nothing
 
-            -- Buscar gêneros e temas na API do IGDB antes de atualizar
-            -- Usamos uma busca exata pelo nome para garantir os metadados corretos
-            gameResults <- liftIO $ Igdb.searchMultipleGames (T.pack name)
-            let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower (T.pack name)) gameResults of
-                    (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
-                    _     -> case gameResults of
-                               (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
-                               _     -> (Nothing, Nothing)
+            case if not played || score == Just "" || score == Just "0" then Just 0.0 else score >>= readMaybe of
+                Just scoreDouble -> do
+                    -- Buscar gêneros e temas na API do IGDB antes de atualizar
+                    -- Usamos uma busca exata pelo nome para garantir os metadados corretos
+                    gameResults <- liftIO $ Igdb.searchMultipleGames (T.pack name)
+                    let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower (T.pack name)) gameResults of
+                            (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                            _     -> case gameResults of
+                                       (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                                       _     -> (Nothing, Nothing)
 
-            result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
-            case result of
-                Right _ -> do
-                    isHtmx <- header "HX-Request"
-                    case isHtmx of
-                        Just "true" -> getBacklogWithFilters formData
-                        _ -> do
-                            referer <- header "Referer"
-                            case referer of
-                                Just ref -> redirect ref
-                                Nothing -> redirect "/backlog"
-                Left msg -> html $ TL.pack $ "Erro ao atualizar: " ++ msg
-        _ -> html "Dados inválidos para edição"
+                    result <- liftIO $ DB.updateGame gameId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
+                    case result of
+                        Right _ -> do
+                            isHtmx <- header "HX-Request"
+                            case isHtmx of
+                                Just "true" -> do
+                                    setHeader "HX-Trigger" "{\"edit-saved\":true}"
+                                    renderBacklogWithFilters formData Nothing
+                                _ -> do
+                                    referer <- header "Referer"
+                                    case referer of
+                                        Just ref -> redirect ref
+                                        Nothing -> redirect "/backlog"
+                        Left msg -> renderEditError formData internalServerError500 (T.pack msg)
+                Nothing -> renderEditError formData badRequest400 "Informe uma nota valida entre 0 e 10 ou deixe o campo em branco."
+        _ -> renderEditError formData badRequest400 "Preencha titulo e plataforma para atualizar o jogo."
+  where
+    renderEditError filters responseStatus message = do
+        isHtmx <- header "HX-Request"
+        case isHtmx of
+            Just "true" -> renderBacklogWithFilters filters (Just message)
+            _ -> do
+                status responseStatus
+                renderBacklogWithFilters filters (Just message)
 
 postConfirm :: ActionM ()
 postConfirm = do
     requestBody <- body
     let formData = Format.parseFormData requestBody
     mUserId <- Session.sessionLookup "user_id"
+    let maybeName = T.pack <$> lookup "name" formData
+    let maybePlatform = T.pack <$> lookup "platform" formData
+    let scoreText = T.pack $ maybe "" id (lookup "score" formData)
+    let played = lookup "played" formData == Just "on"
+    let platinumed = lookup "platinumed" formData == Just "on"
+    let maybeSource = T.pack <$> lookup "source" formData
+    let maybeCoverUrl = case lookup "cover_url" formData of
+            Just "" -> Nothing
+            Just url -> Just (T.pack url)
+            Nothing -> Nothing
 
-    case (mUserId, lookup "name" formData, lookup "platform" formData) of
+    case (mUserId, maybeName, maybePlatform) of
         (Just userIdStr, Just name, Just platform) -> do
             let userId = read userIdStr :: Int
-            let score = maybe "" id (lookup "score" formData)
-            let scoreDouble = if score == "" || score == "0" then 0.0 else read score :: Double
-            let played = lookup "played" formData == Just "on"
-            let platinumed = lookup "platinumed" formData == Just "on"
+            case if scoreText == "" || scoreText == "0" then Just 0.0 else readMaybe (T.unpack scoreText) of
+                Just scoreDouble -> do
+                    -- Buscar gêneros e temas na API do IGDB antes de inserir
+                    -- Tenta encontrar o jogo exato retornado pela busca para salvar os gêneros/temas corretos no banco
+                    gameResults <- liftIO $ Igdb.searchMultipleGames name
+                    let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower name) gameResults of
+                            (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                            _     -> case gameResults of
+                                       (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
+                                       _     -> (Nothing, Nothing)
 
-            -- Pegar a cover_url do formulário
-            let maybeCoverUrl = case lookup "cover_url" formData of
-                    Just "" -> Nothing
-                    Just url -> Just (T.pack url)
-                    Nothing -> Nothing
-
-            -- Buscar gêneros e temas na API do IGDB antes de inserir
-            -- Tenta encontrar o jogo exato retornado pela busca para salvar os gêneros/temas corretos no banco
-            gameResults <- liftIO $ Igdb.searchMultipleGames (T.pack name)
-            let (mGenres, mThemes) = case filter (\g -> T.toLower (Igdb.grName g) == T.toLower (T.pack name)) gameResults of
-                    (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
-                    _     -> case gameResults of
-                               (g:_) -> (Just $ T.intercalate "," (Igdb.grGenres g), Just $ T.intercalate "," (Igdb.grThemes g))
-                               _     -> (Nothing, Nothing)
-
-            result <- liftIO $ DB.insertGame userId (T.pack name) scoreDouble (T.pack platform) maybeCoverUrl played platinumed mGenres mThemes
-            case result of
-                Right _ -> case lookup "source" formData of
-                               Just "recomend" -> redirect "/recomend"
-                               _ -> case lookup "original_name" formData of
-                                        Just origName -> redirect $ "/game-selection?name=" <> TL.pack origName <> "&score=&platform=PC"
-                                        Nothing -> redirect "/add"
-                Left msg -> html $ TL.pack $ "Erro ao salvar: " ++ msg
-        _ -> html "Dados inválidos ou usuário não autenticado" -- Captura qualquer outro caso
+                    result <- liftIO $ DB.insertGame userId name scoreDouble platform maybeCoverUrl played platinumed mGenres mThemes
+                    case result of
+                        Right _ -> case lookup "source" formData of
+                                       Just "recomend" -> redirect "/recomend"
+                                       _ -> case lookup "original_name" formData of
+                                                Just origName -> redirect $ "/game-selection?name=" <> TL.pack origName <> "&score=&platform=PC"
+                                                Nothing -> redirect "/add"
+                        Left _ -> do
+                            status internalServerError500
+                            html $ renderText $ Confirm.confirmPage name scoreText platform maybeCoverUrl played platinumed maybeSource (Just "Nao foi possivel salvar esse jogo agora. Tente novamente em instantes.")
+                Nothing -> do
+                    status badRequest400
+                    html $ renderText $ Confirm.confirmPage name scoreText platform maybeCoverUrl played platinumed maybeSource (Just "Informe uma nota valida entre 0 e 10 ou deixe o campo em branco.")
+        _ -> do
+            status badRequest400
+            html $ renderText $ Confirm.confirmPage (maybe "" id maybeName) scoreText (maybe "PC" id maybePlatform) maybeCoverUrl played platinumed maybeSource (Just "Confira os dados do jogo antes de confirmar.")
 
 postDelete :: ActionM ()
 postDelete = do
@@ -200,13 +227,13 @@ getLogout = do
     redirect "/"
 
 getIndex :: ActionM ()
-getIndex = html $ renderText Index.indexPage
+getIndex = html $ renderText $ Index.indexPage Nothing
 
 getLogin :: ActionM ()
-getLogin = html $ renderText Login.loginPage
+getLogin = html $ renderText $ Login.loginPage Nothing
 
 getRegister :: ActionM ()
-getRegister = html $ renderText Register.registerPage
+getRegister = html $ renderText $ Register.registerPage Nothing
 
 getAdd :: ActionM ()
 getAdd = do
@@ -239,7 +266,10 @@ getBacklog = do
     getBacklogWithFilters (map (\(k, v) -> (T.unpack k, T.unpack v)) params)
 
 getBacklogWithFilters :: [(String, String)] -> ActionM ()
-getBacklogWithFilters filters = do
+getBacklogWithFilters filters = renderBacklogWithFilters filters Nothing
+
+renderBacklogWithFilters :: [(String, String)] -> Maybe T.Text -> ActionM ()
+renderBacklogWithFilters filters maybeEditError = do
     mUserId <- Session.sessionLookup "user_id"
 
     let platformFilter = T.pack $ maybe "" id (lookup "platform" filters)
@@ -265,7 +295,7 @@ getBacklogWithFilters filters = do
                                 "recent" -> sortBy (\a b -> compare (Game.gameId b) (Game.gameId a)) filteredGames
                                 _ -> sortBy (\a b -> compare (T.toLower $ Game.title a) (T.toLower $ Game.title b)) filteredGames
 
-            html $ renderText $ Backlog.backlogPage searchFilter platformFilter sortFilter (wantToPlayFilter == Just True) (playedFilter == Just True) (platinumedFilter == Just True) sortedGames
+            html $ renderText $ Backlog.backlogPage searchFilter platformFilter sortFilter (wantToPlayFilter == Just True) (playedFilter == Just True) (platinumedFilter == Just True) maybeEditError sortedGames
         Nothing -> redirect "/login"
 
 getConfirm :: ActionM ()
@@ -291,7 +321,7 @@ getConfirm = do
             Just s | not (TL.null s) -> Just (TL.toStrict s)
             _ -> Nothing
 
-    html $ renderText $ Confirm.confirmPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) maybeCover played platinumed maybeSource
+    html $ renderText $ Confirm.confirmPage (TL.toStrict name) (TL.toStrict score) (TL.toStrict platform) maybeCover played platinumed maybeSource Nothing
 
 getGameSelection :: ActionM ()
 getGameSelection = do
@@ -469,3 +499,10 @@ postTournamentVote = do
                     let restIds = map Game.gameId rest
                     html $ renderText $ Tournament.battleView winner next restIds total
         Nothing -> html "Não autenticado"
+
+registerErrorMessage :: String -> T.Text
+registerErrorMessage rawMessage
+    | "UNIQUE constraint failed" `T.isInfixOf` packedMessage = "Esse e-mail ja esta em uso. Tente outro ou faca login."
+    | otherwise = "Nao foi possivel concluir seu cadastro agora. Tente novamente em instantes."
+  where
+    packedMessage = T.pack rawMessage

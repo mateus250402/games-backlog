@@ -1,11 +1,16 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Web.Scotty (scotty, get, post)
+import Control.Exception (SomeException)
+import Lucid (renderText)
+import Network.HTTP.Types.Status (internalServerError500)
+import Web.Scotty (Handler (Handler), defaultHandler, get, html, post, scotty, status)
 
 -- Utils
 import qualified DB.DB as DB
+import qualified Pages.Index as Index
 import qualified Utils.Session as Session
 import qualified Utils.Handles as Hd
 
@@ -14,6 +19,9 @@ main = do
     DB.initDB
 
     scotty 3000 $ do
+        defaultHandler $ Handler $ \(_ :: SomeException) -> do
+            status internalServerError500
+            html $ renderText $ Index.indexPage (Just "Nao foi possivel carregar a pagina agora. Tente novamente em instantes.")
 
         get "/" Hd.getIndex
 
