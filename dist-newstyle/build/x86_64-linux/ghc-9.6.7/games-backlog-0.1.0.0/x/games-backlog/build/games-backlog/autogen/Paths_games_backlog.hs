@@ -46,12 +46,12 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
-bindir     = "/home/mini-nico/.cabal/bin"
-libdir     = "/home/mini-nico/.cabal/lib/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0-inplace-games-backlog"
-dynlibdir  = "/home/mini-nico/.cabal/lib/x86_64-linux-ghc-9.6.7"
-datadir    = "/home/mini-nico/.cabal/share/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0"
-libexecdir = "/home/mini-nico/.cabal/libexec/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0"
-sysconfdir = "/home/mini-nico/.cabal/etc"
+bindir     = "/home/nico/.cabal/bin"
+libdir     = "/home/nico/.cabal/lib/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0-inplace-games-backlog"
+dynlibdir  = "/home/nico/.cabal/lib/x86_64-linux-ghc-9.6.7"
+datadir    = "/home/nico/.cabal/share/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0"
+libexecdir = "/home/nico/.cabal/libexec/x86_64-linux-ghc-9.6.7/games-backlog-0.1.0.0"
+sysconfdir = "/home/nico/.cabal/etc"
 
 getBinDir     = catchIO (getEnv "games_backlog_bindir")     (\_ -> return bindir)
 getLibDir     = catchIO (getEnv "games_backlog_libdir")     (\_ -> return libdir)

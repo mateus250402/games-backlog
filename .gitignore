@@ -1,1 +1,4 @@
 *.db
+/dist-newstyle
+.idea
+/dist-newstyle
