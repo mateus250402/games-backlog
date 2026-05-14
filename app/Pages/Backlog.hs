@@ -43,6 +43,7 @@ backlogPage searchFilter platformFilter sortFilter wantToPlayFilter playedFilter
 
             div_ [class_ "mb-4 text-center d-flex justify-content-center gap-2 flex-wrap"] $ do
                 a_ [href_ "/add", class_ "btn btn-success"] "Adicionar Jogo"
+                a_ [href_ "/recomend", class_ "btn btn-primary fw-bold"] "✨ Recomendações"
                 a_ [href_ "/tournament", class_ "btn btn-warning fw-bold"] "🏆 O que Jogar?"
                 a_ [href_ "/", class_ "btn btn-outline-primary"] "Home"
 

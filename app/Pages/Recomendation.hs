@@ -7,7 +7,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Models.Games (Game(..))
 import Api.Igdb (GameResult(..))
-import Data.List (sortBy)
 import Control.Monad (when)
 
 -- | Página de Recomendações
@@ -49,7 +48,7 @@ recomendPage trendingGames topRatedGames recommendedGames minYear maxYear = html
                         div_ [class_ "col-md-auto"] $
                             a_ [href_ "/backlog", class_ "btn btn-outline-secondary"] "Voltar"
                         div_ [class_ "col-md-auto"] $
-                            a_ [href_ "/migrate-metadata", class_ "btn btn-outline-warning", title_ "Busca gêneros e temas para jogos antigos no seu backlog"] "Sincronizar Perfil"
+                            a_ [href_ "/migrate-metadata", class_ "btn btn-outline-warning", title_ "Busca gêneros e temas para jogos antigos no seu backlog"] "Atualizar"
 
             if null trendingGames && null topRatedGames && null recommendedGames
                 then div_ [class_ "alert alert-info text-center mt-5"] $ do
@@ -73,48 +72,44 @@ recomendPage trendingGames topRatedGames recommendedGames minYear maxYear = html
 
 -- | Renderiza um card simplificado para os jogos recomendados
 renderRecommendedCard :: GameResult -> Html ()
-renderRecommendedCard (GameResult title platforms year coverUrl genres themes) =
+renderRecommendedCard (GameResult gameTitle _platforms year coverUrl gameGenres gameThemes) =
     div_ [class_ "col"] $
-        div_ [class_ "card h-100 shadow-sm border-0 rounded-4 overflow-hidden position-relative"] $ do
+        div_ [class_ "card h-100 shadow-sm border-0 rounded-4 overflow-hidden position-relative recommended-card"] $ do
             form_ [ method_ "post"
                   , action_ "/ignore-recomend"
                   , class_ "position-absolute"
                   , style_ "top: 8px; right: 8px; z-index: 10;"
                   ] $ do
-                input_ [type_ "hidden", name_ "title", value_ title]
+                input_ [type_ "hidden", name_ "title", value_ gameTitle]
                 button_ [ type_ "submit"
                         , class_ "btn btn-sm btn-light rounded-circle shadow-sm"
                         , style_ "width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0.8;"
                         , title_ "Não recomendar este jogo"
                         ] "✖"
 
-            div_ [class_ "d-flex", style_ "height: 160px;"] $ do
-                div_ [style_ "width: 120px; min-width: 120px;"] $
+            div_ [class_ "d-flex flex-column flex-md-row align-items-stretch recommended-card-body"] $ do
+                div_ [class_ "recommended-media"] $
                     case coverUrl of
-                        Just url -> img_ [src_ url, class_ "h-100 w-100", style_ "object-fit: cover;", alt_ "Capa"]
+                        Just url -> img_ [src_ url, class_ "recommended-cover", alt_ "Capa"]
                         Nothing -> div_ [class_ "bg-secondary h-100 w-100 d-flex align-items-center justify-content-center text-white"] "Sem capa"
 
-                div_ [class_ "p-3 flex-grow-1 d-flex flex-column justify-content-center"] $ do
-                    h5_ [class_ "card-title fw-bold mb-1", style_ "font-size: 1.1rem;"] $ toHtml title
-                    p_ [class_ "text-muted small mb-1"] $ toHtml $ maybe "" (T.pack . show) year
-                    div_ [class_ "mt-2"] $
-                        case platforms of
-                            [] -> ""
-                            (p:_) -> span_ [class_ "badge bg-light text-dark border"] $ toHtml p
+                div_ [class_ "p-3 flex-grow-1 d-flex flex-column justify-content-between recommended-content"] $ do
+                    div_ [class_ "mb-3"] $ do
+                        h5_ [class_ "card-title fw-bold mb-1", style_ "font-size: 1.1rem;"] $ toHtml gameTitle
+                        p_ [class_ "text-muted small mb-0"] $ toHtml $ maybe "" (T.pack . show) year
 
-            div_ [class_ "card-footer bg-white border-0 pt-2 pb-3 px-3 d-flex justify-content-between align-items-center"] $ do
-                div_ [class_ "d-flex flex-wrap gap-1"] $ do
-                    mapM_ (\g -> span_ [class_ "badge rounded-pill", style_ "background: #e3f2fd; color: #1976d2; font-size: 0.7rem;"] $ toHtml g) (take 2 genres)
-                    mapM_ (\t -> span_ [class_ "badge rounded-pill", style_ "background: #f3e5f5; color: #7b1fa2; font-size: 0.7rem;"] $ toHtml t) (take 1 themes)
+                    div_ [class_ "d-flex flex-wrap gap-2 recommended-tags"] $ do
+                        mapM_ (\g -> span_ [class_ "badge rounded-pill", style_ "background: #e3f2fd; color: #1976d2; font-size: 0.7rem;"] $ toHtml g) (take 2 gameGenres)
+                        mapM_ (\t -> span_ [class_ "badge rounded-pill", style_ "background: #f3e5f5; color: #7b1fa2; font-size: 0.7rem;"] $ toHtml t) (take 1 gameThemes)
 
-                a_ [ href_ $ "https://www.youtube.com/results?search_query=" <> T.replace " " "+" title <> "+game review"
-                   , target_ "_blank"
-                   , class_ "btn btn-sm btn-outline-danger"
-                   , style_ "position: relative; z-index: 2; padding: 0.1rem 0.4rem; font-size: 0.75rem;"
-                   , title_ "Pesquisar no YouTube"
-                   ] "▶"
+                    a_ [ href_ $ "https://www.youtube.com/results?search_query=" <> T.replace " " "+" gameTitle <> "+game review"
+                       , target_ "_blank"
+                       , class_ "btn btn-sm btn-outline-danger align-self-start mt-3"
+                       , style_ "position: relative; z-index: 2; padding: 0.1rem 0.4rem; font-size: 0.75rem;"
+                       , title_ "Pesquisar no YouTube"
+                       ] "▶"
 
-            a_ [ href_ $ "/add?name=" <> T.replace " " "+" title <> "&source=recomend"
+            a_ [ href_ $ "/add?name=" <> T.replace " " "+" gameTitle <> "&source=recomend"
                , class_ "stretched-link"
                ] ""
 
@@ -124,6 +119,16 @@ customStyle = T.concat
     , ".card { transition: transform 0.2s, box-shadow 0.2s; }"
     , ".card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }"
     , ".badge { font-weight: 500; }"
+    , ".recommended-card { min-height: 220px; }"
+    , ".recommended-card-body { min-height: 220px; }"
+    , ".recommended-media { width: 160px; min-width: 160px; align-self: stretch; }"
+    , ".recommended-cover { width: 100%; height: 100%; object-fit: cover; display: block; }"
+    , ".recommended-content { min-width: 0; }"
+    , ".recommended-tags { margin-top: auto; }"
+    , "@media (max-width: 767.98px) { "
+    , "  .recommended-card-body { flex-direction: column !important; } "
+    , "  .recommended-media { width: 100%; min-width: 100%; height: 180px; } "
+    , "}"
     ]
 
 -- | Estatísticas de (Nome do Item, Frequência, Soma das Notas)

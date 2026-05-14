@@ -169,9 +169,10 @@ searchRecommendations criteria excludeTitles = do
     let trendingResults = parseBody (getResponseBody responseTrending)
     let topRatedResults = parseBody (getResponseBody responseTopRated)
 
-    let filteredPref = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) prefResults
-    let filteredTrending = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) trendingResults
-    let filteredTopRated = filter (\g -> isNewGame excludeTitles g && not (isAndroidOnly g)) topRatedResults
+    let isVisibleGame g = isNewGame excludeTitles g && not (isAndroidOnly g)
+    let filteredPref = filter isVisibleGame prefResults
+    let filteredTrending = filter isVisibleGame trendingResults
+    let filteredTopRated = filter isVisibleGame topRatedResults
 
     putStrLn $ "DEBUG: Preferências do usuário - Gêneros: " ++ show (map fst rankedGenres)
     putStrLn $ "DEBUG: Preferências do usuário - Temas: " ++ show (map fst rankedThemes)
